@@ -9,8 +9,18 @@
   "enableServer": true,
   "enableNativeAPI": true,
   "tokenSecurity": "one-time",
-  "logging": { "enabled": true, "writeToLogFile": false },
-  "nativeAllowList": ["app.*", "os.*", "filesystem.*", "window.*", "events.*", "debug.log"],
+  "logging": {
+    "enabled": true,
+    "writeToLogFile": false
+  },
+  "nativeAllowList": [
+    "app.*",
+    "os.*",
+    "filesystem.*",
+    "window.*",
+    "events.*",
+    "debug.log"
+  ],
   "modes": {
     "window": {
       "title": "Smart Floor",
@@ -20,7 +30,8 @@
       "minHeight": 640,
       "center": true,
       "enableInspector": true,
-      "exitProcessOnClose": false
+      "exitProcessOnClose": false,
+      "icon": "/dist/icon.png"
     }
   },
   "cli": {

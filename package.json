@@ -7,7 +7,7 @@
     "postinstall": "cp node_modules/sql.js/dist/sql-wasm.wasm public/sql-wasm.wasm",
     "dev": "neu run",
     "vite": "vite",
-    "build": "vite build && neu build --release",
+    "build": "node scripts/check-index.mjs && vite build && neu build --release",
     "check": "vue-tsc --noEmit && node scripts/check.mjs"
   },
   "dependencies": {
