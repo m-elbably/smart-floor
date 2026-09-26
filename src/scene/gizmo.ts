@@ -12,6 +12,7 @@ export function attachGizmo(vp: Viewport) {
   tc.showY = false
   tc.setSize(0.8)
   const helper = tc.getHelper()
+  helper.userData.noExport = true
   const proxy = new THREE.Object3D()
   vp.scene.add(helper, proxy)
   let id = ''

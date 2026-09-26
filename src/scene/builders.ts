@@ -2,8 +2,9 @@
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import type { Floor, Opening, Room, Stair, Vec2, Zone } from '@/types'
-import { add, centroid, dot, lerp, norm, scale, sub, wallSegments, dist } from '@/editor/geometry'
-import type { WallView } from '@/editor/model'
+import { add, centroid, lerp, norm, scale, sub, wallSegments, dist } from '@/editor/geometry'
+import { doorLeaves, swingArc, type WallView } from '@/editor/model'
+export { openingFrame } from '@/editor/model'
 import { FLOOR_MATERIALS, ZONE_KINDS, POOL_DEPTH } from '@/editor/presets'
 import { COLUMN_R, type StairSolution } from '@/editor/stairs'
 import { LAYER } from './viewport'
@@ -133,30 +134,14 @@ export function buildWalls(walls: WallView[], openings: PlacedOpening[]) {
 
 function doorSymbol(po: PlacedOpening, w: WallView, from: number, to: number, top: number): THREE.Object3D[] {
   const o = po.opening
-  if (o.preset === 'opening') return []
   const dir = norm(sub(w.b, w.a))
-  const at = (t: number) => add(w.a, scale(dir, t))
-  const swingIn = (o.props.swing ?? 'in') === 'in'
-  const into = swingIn ? po.inward : scale(po.inward, -1)
-  const face = (p: Vec2) => add(p, scale(into, w.thickness / 2))
-  const leaves: { hinge: Vec2; toward: Vec2; width: number }[] = []
-  const width = to - from
-  if (o.preset === 'double') {
-    leaves.push({ hinge: at(from), toward: dir, width: width / 2 }, { hinge: at(to), toward: scale(dir, -1), width: width / 2 })
-  } else {
-    const hingeStart = po.hingeAtStart === ((o.props.hinge ?? 'left') === 'left')
-    leaves.push(hingeStart ? { hinge: at(from), toward: dir, width } : { hinge: at(to), toward: scale(dir, -1), width })
-  }
+  const leaves = doorLeaves(o, w, from, to, po.inward, po.hingeAtStart)
   const out: THREE.Object3D[] = []
   for (const leaf of leaves) {
-    const h = face(leaf.hinge)
-    // 2D: leaf line + quarter arc
-    const pts: THREE.Vector3[] = []
-    for (let i = 0; i <= 16; i++) {
-      const a = (i / 16) * (Math.PI / 2)
-      pts.push(v3(add(h, add(scale(leaf.toward, Math.cos(a) * leaf.width), scale(into, Math.sin(a) * leaf.width))), 0.01))
-    }
-    pts.push(v3(h, 0.01))
+    const h = leaf.hinge
+    const into = leaf.into
+    // 2D: quarter arc + leaf line back to the hinge
+    const pts = [...swingArc(leaf), h].map(p => v3(p, 0.01))
     const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat())
     line.layers.set(LAYER.plan)
     out.push(line)
@@ -195,12 +180,6 @@ function windowSymbol(o: Opening, w: WallView, from: number, to: number): THREE.
   glass.layers.set(LAYER.model)
   glass.userData = { id: o.id, kind: 'opening' }
   return [lines, glass]
-}
-
-/** Which side of a wall is "inside" for an opening, and whether its host edge runs the same way as the wall piece. */
-export function openingFrame(hostA: Vec2, hostB: Vec2, w: WallView) {
-  const d = norm(sub(hostB, hostA))
-  return { inward: [-d[1], d[0]] as Vec2, hingeAtStart: dot(d, sub(w.b, w.a)) > 0 }
 }
 
 // ---------- stairs ----------

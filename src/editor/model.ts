@@ -2,7 +2,7 @@
 // snap targets. Pure functions of (data, settings) — recomputed on demand, plans are small.
 import type { ProjectData } from '@/db/repo'
 import type { Opening, OpeningHost, Room, Vec2 } from '@/types'
-import { deriveWalls, dist, lerp, edges, dot, sub, norm, type WallHost, projectOnSegment, segDistance, EPS } from './geometry'
+import { deriveWalls, dist, lerp, edges, pointInPolygon, dot, sub, norm, add, scale, rightNormal, type WallHost, projectOnSegment, segDistance, EPS } from './geometry'
 
 export interface WallView {
   key: string
@@ -139,4 +139,78 @@ export function snapTargets(data: ProjectData, floorId: string, skip?: { roomId:
   for (const w of data.walls) if (w.floorId === floorId) (vertices.push(w.a, w.b), segments.push([w.a, w.b]))
   if (data.project.site) (vertices.push(...data.project.site), segments.push(...edges(data.project.site)))
   return { vertices, segments }
+}
+
+// ---------- shared drawing geometry (3D builder, overlay, PDF) ----------
+
+/** Which side of a wall is "inside" for an opening, and whether its host edge runs the same way as the wall piece. */
+export function openingFrame(hostA: Vec2, hostB: Vec2, w: WallView) {
+  const d = norm(sub(hostB, hostA))
+  return { inward: [-d[1], d[0]] as Vec2, hingeAtStart: dot(d, sub(w.b, w.a)) > 0 }
+}
+
+
+export interface DoorLeaf {
+  hinge: Vec2 // on the wall face the door swings toward
+  toward: Vec2 // closed direction (along the wall)
+  into: Vec2 // open direction (90°)
+  width: number
+}
+
+/** Door leaves for the opening part [from, to] of a wall piece. `inward` points into the host room. */
+export function doorLeaves(o: Pick<Opening, 'preset' | 'props'>, w: Pick<WallView, 'a' | 'b' | 'thickness'>, from: number, to: number, inward: Vec2, hingeAtStart: boolean): DoorLeaf[] {
+  if (o.preset === 'opening') return []
+  const dir = norm(sub(w.b, w.a))
+  const at = (t: number) => add(w.a, scale(dir, t))
+  const into = (o.props.swing ?? 'in') === 'in' ? inward : scale(inward, -1)
+  const face = (p: Vec2) => add(p, scale(into, w.thickness / 2))
+  const width = to - from
+  if (o.preset === 'double')
+    return [
+      { hinge: face(at(from)), toward: dir, into, width: width / 2 },
+      { hinge: face(at(to)), toward: scale(dir, -1), into, width: width / 2 }
+    ]
+  const hingeStart = hingeAtStart === ((o.props.hinge ?? 'left') === 'left')
+  return [hingeStart ? { hinge: face(at(from)), toward: dir, into, width } : { hinge: face(at(to)), toward: scale(dir, -1), into, width }]
+}
+
+/** Quarter-arc points of a door swing (closed → open). */
+export const swingArc = (l: DoorLeaf, n = 16): Vec2[] =>
+  Array.from({ length: n + 1 }, (_, i) => {
+    const a = (i / n) * (Math.PI / 2)
+    return add(l.hinge, add(scale(l.toward, Math.cos(a) * l.width), scale(l.into, Math.sin(a) * l.width)))
+  })
+
+export interface WallDim {
+  a: Vec2 // dimension line
+  b: Vec2
+  ext: [Vec2, Vec2][] // extension lines
+  at: Vec2 // label position
+  length: number
+}
+
+/** Outside dimension lines for every exterior room wall on a floor (FR-72). */
+export function wallDimensions(data: ProjectData, floorId: string, s: { wallInterior: number; wallExterior: number }, gap = 0.45): WallDim[] {
+  const out: WallDim[] = []
+  const rooms = data.rooms.filter(r => r.floorId === floorId)
+  for (const w of floorWalls(data, floorId, s)) {
+    if (w.wallId || w.hosts.length !== 1) continue
+    const line = hostLine(data, w.hosts[0])
+    if (!line) continue
+    const n = rightNormal(sub(line[1], line[0])) // outward (CCW rooms)
+    const off = (k: number) => scale(n, w.thickness / 2 + k)
+    const [a, b] = [add(w.a, off(gap)), add(w.b, off(gap))]
+    if (rooms.some(r => pointInPolygon(lerp(a, b, 0.5), r.polygon))) continue // would run through a neighbouring room
+    out.push({
+      a,
+      b,
+      ext: [
+        [add(w.a, off(0.05)), add(w.a, off(gap + 0.1))],
+        [add(w.b, off(0.05)), add(w.b, off(gap + 0.1))]
+      ],
+      at: add(lerp(a, b, 0.5), scale(n, 0.05)),
+      length: dist(w.a, w.b)
+    })
+  }
+  return out
 }

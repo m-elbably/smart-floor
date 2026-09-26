@@ -308,22 +308,32 @@ A milestone is done only when its **Verify** box is checked.
     - Dimensions are drawn per exterior wall piece: the View menu (eye icon) or Shift+D.
     - The measure tool key is M. The summary is a slideover (Σ button or Shift+S). It replaced the M8 site area in the status bar.
 
-## M12 — Export `[FR-110..113]`
-- [ ] `export/png.ts`: resolutions 1×, 2× and 4×, save dialog. `[FR-110]`
-- [ ] `export/glb.ts`: whole project or the active floor, excluding the overlay and labels. `[FR-111]`
-- [ ] `export/pdf.ts`:
+## M12 — Export `[FR-110..113]` ✅
+- [x] `export/png.ts`: resolutions 1×, 2× and 4×, save dialog. `[FR-110]`
+- [x] `export/glb.ts`: whole project or the active floor, excluding the overlay and labels. `[FR-111]`
+- [x] `export/pdf.ts`:
   - vector plan from the store
   - title block
   - scale 1:50, 1:100 or fit
   - A4/A3 in either orientation
   - one page per floor
   - `[FR-112]`
-- [ ] `export/projectFile.ts`: `.smartfloor` export and import, with new ids on import. `[FR-113]`
-- [ ] Export dropdown in the TopBar with an options modal.
-- [ ] **Verify:**
+- [x] `export/projectFile.ts`: `.smartfloor` export and import, with new ids on import. `[FR-113]`
+- [x] Export dropdown in the TopBar with an options modal.
+- [ ] **Verify (user):**
   - The GLB opens in https://gltf-viewer.donmccurdy.com.
   - The printed PDF at 1:100 measures correctly with a ruler.
   - A project round-trips through a `.smartfloor` file.
+  - Headless check done:
+    - PNG at 2× = exactly twice the canvas size.
+    - The GLB (236 KB) parses with three.js GLTFLoader: 140 meshes plus 36 instanced meshes (`EXT_mesh_gpu_instancing`).
+    - The PDF is A4 landscape. Rendered with pdftoppm, the 5 m scale bar is 50 mm at 1:100 (`layout.check.ts` also asserts 4 m = 40 mm).
+    - `.smartfloor` export then import from Home gives a second project with identical counts (2 floors, 2 rooms, 2 openings, 1 stair, 7 items) and new ids.
+  - As built:
+    - `src/export/` holds `files.ts` (native dialogs, or download / file picker in a browser), `project.ts`, `layout.ts` + check, and `pdf.ts` (vector, from the store).
+    - PNG and GLB come from `viewport.snapshot()` / `exportGlb()`. The PNG leaves out the overlay, gizmo and CSS labels. The GLB leaves out plan symbols, pick boxes, ceilings and lines.
+    - The PDF falls back to fit-to-page (with a toast) when 1:50 / 1:100 doesn't fit, and prints the real scale.
+    - Door and dimension geometry is shared by 3D, overlay and PDF (`model.ts`: `doorLeaves`, `swingArc`, `wallDimensions`).
 
 ## M13 — Polish `[FR-04, FR-14, FR-101, NFR-07]`
 - [ ] Thumbnail on close, and at most once a minute while editing. `[FR-04]`

@@ -25,6 +25,12 @@ export class DbOpenError extends Error {
   }
 }
 
+/** A fresh, separate database (project files): empty, or opened from bytes. Not the app database. */
+export async function newDatabase(bytes?: Uint8Array): Promise<Database> {
+  SQL ??= await initSqlJs({ locateFile: () => './sql-wasm.wasm' })
+  return bytes ? new SQL.Database(bytes) : new SQL.Database()
+}
+
 export function useDb(): Database {
   if (!db) throw new Error('Database not open')
   return db

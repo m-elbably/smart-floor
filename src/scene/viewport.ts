@@ -2,7 +2,8 @@
 // Plan (x, y) maps to world (x, elevation, -y), so plan +y is screen-up in 2D.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { createGrid } from './grid'
 import type { Vec2 } from '@/types'
 
@@ -71,6 +72,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
   const s = { view: '2d' as View, center: [0, 0] as Vec2, ppm: 50, elevation: 0, w: 1, h: 1, space: false }
   const camera = () => (s.view === '2d' ? ortho : persp)
   const walking = () => s.view === 'walk'
+  let exporting = false
   const distFor = (ppm: number) => s.h / (2 * ppm * halfTan)
   const ppmFor = (dist: number) => s.h / (2 * dist * halfTan)
 
@@ -169,6 +171,13 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
 
   let panning: { x: number; y: number } | null = null
   let gesture = false
+  const capture = (id: number) => {
+    try {
+      canvas.setPointerCapture(id)
+    } catch {
+      /* pointer already released (synthetic or lost) — the drag still works without capture */
+    }
+  }
   let guard: (() => boolean) | null = null
   // Capture phase on the container, so a claimed drag can switch orbit off before OrbitControls sees it.
   function onPointerDown(e: PointerEvent) {
@@ -177,7 +186,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     if (s.view === '2d' && (e.button === 1 || (e.button === 0 && s.space))) {
       e.preventDefault()
       panning = { x: e.clientX, y: e.clientY }
-      canvas.setPointerCapture(e.pointerId)
+      capture(e.pointerId)
       canvas.style.cursor = 'grabbing'
       return
     }
@@ -190,7 +199,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     if (onPointer('down', e, planAt(e.offsetX, e.offsetY))) {
       gesture = true
       orbit.enabled = false
-      canvas.setPointerCapture(e.pointerId)
+      capture(e.pointerId)
     }
   }
   function onPointerMove(e: PointerEvent) {
@@ -356,7 +365,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     const cam = camera()
     grid.update(s.elevation)
     overlay.position.y = s.elevation + 0.02
-    overlay.visible = !walking()
+    overlay.visible = !walking() && !exporting
     labels.domElement.style.display = walking() ? 'none' : ''
     const all = [...groups.values()]
     const ghosts = all.some(g => g.userData.vis === 'ghost')
@@ -368,13 +377,58 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       renderer.render(scene, cam)
       scene.overrideMaterial = null
       grid.object.visible = true
-      overlay.visible = !walking()
+      overlay.visible = !walking() && !exporting
     }
     for (const g of all) g.visible = g.userData.vis === 'normal'
     renderer.autoClear = !ghosts // draw over the ghost pass
     renderer.render(scene, cam)
     renderer.autoClear = true
     labels.render(scene, cam)
+  }
+
+  // ---------- export ----------
+
+  /** PNG of the current view at `scale` × the screen resolution; overlay, gizmo and labels are left out. */
+  async function snapshot(scale: number): Promise<Uint8Array> {
+    const extras = scene.children.filter(o => o.userData.noExport && o.visible)
+    extras.forEach(o => (o.visible = false))
+    const pr = renderer.getPixelRatio()
+    exporting = true
+    try {
+      renderer.setPixelRatio(pr * scale)
+      renderer.setSize(s.w, s.h, false)
+      frame(performance.now())
+      // toBlob copies the drawing buffer synchronously, before the browser can clear it
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'))
+      if (!blob) throw new Error('The image is too large for this graphics card; try a smaller scale')
+      return new Uint8Array(await blob.arrayBuffer())
+    } finally {
+      exporting = false
+      extras.forEach(o => (o.visible = true))
+      renderer.setPixelRatio(pr)
+      renderer.setSize(s.w, s.h, false)
+      requestRender()
+    }
+  }
+
+  /** Binary glTF of the whole building or the active floor: model geometry only (no plan symbols, pick boxes, labels). */
+  async function exportGlb(activeOnly: boolean): Promise<Uint8Array> {
+    const target = activeOnly ? groups.get(floorState.activeId) : floorsRoot
+    if (!target) throw new Error('Nothing to export')
+    const restore: [THREE.Object3D, boolean][] = []
+    const set = (o: THREE.Object3D, v: boolean) => (restore.push([o, o.visible]), (o.visible = v))
+    for (const g of groups.values()) set(g, true)
+    const skip = (1 << LAYER.plan) | (1 << LAYER.pick) | (1 << LAYER.ceiling)
+    target.traverse(o => {
+      if (o instanceof CSS2DObject || (o as THREE.Line).isLine || (o.layers.mask & skip && !(o.layers.mask & 1))) set(o, false)
+    })
+    try {
+      const out = await new GLTFExporter().parseAsync(target, { binary: true, onlyVisible: true })
+      return new Uint8Array(out as ArrayBuffer)
+    } finally {
+      for (const [o, v] of restore.reverse()) o.visible = v
+      requestRender()
+    }
   }
 
   const resize = new ResizeObserver(() => {
@@ -416,6 +470,8 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     perspCamera: persp,
     canvas,
     setGuard: (fn: (() => boolean) | null) => (guard = fn),
+    snapshot,
+    exportGlb,
     size: (v: THREE.Vector2) => v.set(s.w, s.h),
     get activeFloorId() {
       return floorState.activeId

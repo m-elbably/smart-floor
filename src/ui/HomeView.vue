@@ -1,7 +1,25 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Project } from '@/types'
-import { store, createProject, updateProject, duplicateProject, deleteProject, openProject } from '@/editor/store'
+import { store, createProject, updateProject, duplicateProject, deleteProject, openProject, refreshProjects } from '@/editor/store'
+import { openFile } from '@/export/files'
+import { importProject } from '@/export/project'
+
+const toast = useToast()
+// Import a shared .smartfloor file [FR-113]
+async function importFile() {
+  try {
+    const f = await openFile({ name: 'Smart Floor project', ext: 'smartfloor' })
+    if (!f) return
+    const ids = await importProject(f.bytes)
+    refreshProjects()
+    toast.add({ title: `Imported ${f.name}`, icon: 'i-lucide-check' })
+    if (ids[0]) openProject(ids[0])
+  } catch (e) {
+    console.error(e)
+    toast.add({ title: 'That file could not be imported', description: (e as Error).message, color: 'error', icon: 'i-lucide-triangle-alert' })
+  }
+}
 
 const emit = defineEmits<{ settings: [] }>()
 const search = ref('')
@@ -57,6 +75,7 @@ function ago(ts: number) {
       <div class="flex-1" />
       <UInput v-model="search" icon="i-lucide-search" placeholder="Search projects" class="w-64" />
       <UButton icon="i-lucide-settings" color="neutral" variant="ghost" aria-label="Settings" @click="emit('settings')" />
+      <UButton icon="i-lucide-file-up" label="Import" color="neutral" variant="outline" @click="importFile" />
       <UButton icon="i-lucide-plus" label="New project" @click="openForm()" />
     </header>
 

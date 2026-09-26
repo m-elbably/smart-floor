@@ -6,9 +6,9 @@ import type { Viewport, PointerKind } from '@/scene/viewport'
 import { COLORS, type Overlay, type Shape } from '@/scene/overlay'
 import { store, activeFloor, type ToolId } from '../store'
 import { snap, type SnapHit } from '../snapping'
-import { snapTargets, floorWalls, openingOnWall, hostLine } from '../model'
+import { snapTargets, floorWalls, openingOnWall, wallDimensions } from '../model'
 import { format } from '../units'
-import { add, norm, scale, sub, dist, lerp, rightNormal } from '../geometry'
+import { add, norm, scale, sub } from '../geometry'
 import type { Opening } from '@/types'
 import { stairShapes } from './shapes'
 import { itemFootprint } from '@/catalog'
@@ -179,23 +179,12 @@ function outline(id: string, color: string, width: number): Shape[] {
 
 /** Dimension lines along the outside of every exterior wall on the active floor (FR-72). */
 function wallDims(): Shape[] {
-  const data = store.data!
-  const out: Shape[] = []
-  for (const w of floorWalls(data, activeFloor.value!.id, store.settings)) {
-    if (w.wallId || w.hosts.length !== 1) continue // exterior room walls only
-    const line = hostLine(data, w.hosts[0])
-    if (!line) continue
-    const n = rightNormal(sub(line[1], line[0])) // outward
-    const off = (k: number) => scale(n, w.thickness / 2 + k)
-    const [a, b] = [add(w.a, off(0.45)), add(w.b, off(0.45))]
-    out.push(
-      { kind: 'line', points: [a, b], color: '#71717a', width: 1 },
-      { kind: 'line', points: [add(w.a, off(0.05)), add(w.a, off(0.55))], color: '#71717a', width: 1 },
-      { kind: 'line', points: [add(w.b, off(0.05)), add(w.b, off(0.55))], color: '#71717a', width: 1 },
-      { kind: 'label', at: add(lerp(a, b, 0.5), scale(n, 0.05)), text: format(dist(w.a, w.b), store.settings.units) }
-    )
-  }
-  return out
+  const grey = '#71717a'
+  return wallDimensions(store.data!, activeFloor.value!.id, store.settings).flatMap(d => [
+    { kind: 'line' as const, points: [d.a, d.b], color: grey, width: 1 },
+    ...d.ext.map(e => ({ kind: 'line' as const, points: e, color: grey, width: 1 })),
+    { kind: 'label' as const, at: d.at, text: format(d.length, store.settings.units) }
+  ])
 }
 
 export function refresh() {

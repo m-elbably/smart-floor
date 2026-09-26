@@ -20,7 +20,11 @@ import { handleKey } from '@/editor/shortcuts'
 const el = ref<HTMLElement>()
 let vp: Viewport | null = null
 let detach: (() => void)[] = []
-defineExpose({ preset: (p: Parameters<Viewport['preset']>[0]) => vp?.preset(p) })
+defineExpose({
+  preset: (p: Parameters<Viewport['preset']>[0]) => vp?.preset(p),
+  snapshot: (scale: number) => vp!.snapshot(scale),
+  exportGlb: (activeOnly: boolean) => vp!.exportGlb(activeOnly)
+})
 
 // Keys act unless the user is typing or inside a modal/menu.
 const free = (e: KeyboardEvent) => !(e.target as HTMLElement).closest('input, textarea, select, [contenteditable], [role=dialog], [role=menu], [role=listbox]')

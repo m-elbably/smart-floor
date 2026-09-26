@@ -13,6 +13,7 @@ import CommandPalette from './CommandPalette.vue'
 import HelpModal from './HelpModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import SummaryPanel from './SummaryPanel.vue'
+import ExportModal from './ExportModal.vue'
 
 const emit = defineEmits<{ settings: [] }>()
 const floorsOpen = ref(false)
@@ -121,5 +122,6 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
     <HelpModal />
     <ConfirmModal />
     <SummaryPanel />
+    <ExportModal :snapshot="s => viewport!.snapshot(s)" :glb="a => viewport!.exportGlb(a)" />
   </div>
 </template>

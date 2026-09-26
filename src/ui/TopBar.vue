@@ -3,6 +3,29 @@ import { computed, ref, watch } from 'vue'
 import { store, activeFloor, addFloor, closeProject, updateProject } from '@/editor/store'
 import { format } from '@/editor/units'
 import { undo, redo, history } from '@/editor/commands'
+import { notify } from '@/editor/store'
+import { exportProject } from '@/export/project'
+import { saveFile, slug } from '@/export/files'
+import { save } from '@/db/sqlite'
+
+async function exportProjectFile() {
+  if (!store.data) return
+  try {
+    await save() // flush pending edits first
+    const path = await saveFile(`${slug(store.data.project.name)}.smartfloor`, await exportProject(store.data.project.id), { name: 'Smart Floor project', ext: 'smartfloor' })
+    if (path) notify(`Saved ${path}`)
+  } catch (e) {
+    notify(`Export failed: ${(e as Error).message}`)
+  }
+}
+const exportItems = [
+  [
+    { label: 'Image (PNG)…', icon: 'i-lucide-image', onSelect: () => (store.ui.export = 'png') },
+    { label: '3D model (GLB)…', icon: 'i-lucide-file-box', onSelect: () => (store.ui.export = 'glb') },
+    { label: 'Printable plan (PDF)…', icon: 'i-lucide-file-text', onSelect: () => (store.ui.export = 'pdf') }
+  ],
+  [{ label: 'Project file (.smartfloor)…', icon: 'i-lucide-file-down', onSelect: exportProjectFile }]
+]
 
 const emit = defineEmits<{ floors: []; settings: [] }>()
 
@@ -75,6 +98,9 @@ const addItems = [
         <UButton icon="i-lucide-redo-2" color="neutral" variant="ghost" aria-label="Redo" :disabled="!history.redo" @click="redo" />
       </UTooltip>
     </UFieldGroup>
+    <UDropdownMenu :items="exportItems">
+      <UButton icon="i-lucide-download" label="Export" color="neutral" variant="ghost" />
+    </UDropdownMenu>
     <UTooltip text="Areas & summary" :kbds="['shift', 's']">
       <UButton icon="i-lucide-sigma" color="neutral" :variant="store.ui.summary ? 'soft' : 'ghost'" aria-label="Areas and summary" @click="store.ui.summary = !store.ui.summary" />
     </UTooltip>
