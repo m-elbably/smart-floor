@@ -2,3 +2,35 @@
 @import "@nuxt/ui";
 
 html, body, #app { height: 100%; margin: 0; overflow: hidden; }
+
+/* Scene labels (CSS2D) */
+.room-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font: 12px/1.25 system-ui, sans-serif;
+  color: #18181b;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.room-label span {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.hide-room-labels .room-label {
+  display: none !important;
+}
+.ov-label {
+  font: 11px/1 system-ui, sans-serif;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgb(24 24 27 / 0.85);
+  color: #fff;
+  pointer-events: none;
+  white-space: nowrap;
+  margin-top: -22px;
+}
+.ov-label.ov-error {
+  background: #dc2626;
+}

@@ -20,7 +20,14 @@ const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
 export const toWorld = (p: Vec2, elevation = 0) => new THREE.Vector3(p[0], elevation, -p[1])
 
-export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => void) {
+/** Object layers: 0 = always, plan = 2D only, model = 3D only, ceiling = walk only, pick = raycast only. */
+export const LAYER = { ceiling: 1, plan: 2, model: 3, pick: 4 } as const
+
+export type PointerKind = 'down' | 'move' | 'up' | 'dblclick' | 'leave'
+/** Return true from 'down' to claim the drag (orbit is suspended until 'up'). */
+export type PointerHandler = (kind: PointerKind, e: MouseEvent, raw: Vec2 | null) => boolean | void
+
+export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
   const renderer = new THREE.WebGLRenderer({ antialias: true })
   renderer.setPixelRatio(devicePixelRatio)
   renderer.shadowMap.enabled = true
@@ -51,7 +58,9 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
   // ---------- cameras ----------
   const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000)
   ortho.up.set(0, 0, -1)
+  ortho.layers.enable(LAYER.plan)
   const persp = new THREE.PerspectiveCamera(FOV, 1, 0.05, 2000)
+  persp.layers.enable(LAYER.model)
   const orbit = new OrbitControls(persp, canvas)
   orbit.enableDamping = true
   orbit.enabled = false
@@ -137,24 +146,42 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
   }
 
   let panning: { x: number; y: number } | null = null
+  let gesture = false
+  // Capture phase on the container, so a claimed drag can switch orbit off before OrbitControls sees it.
   function onPointerDown(e: PointerEvent) {
+    if (e.target !== canvas) return
     ;(document.activeElement as HTMLElement | null)?.blur() // hand the keyboard back to the viewport
-    if (s.view !== '2d' || !(e.button === 1 || (e.button === 0 && s.space))) return
-    e.preventDefault()
-    panning = { x: e.clientX, y: e.clientY }
-    canvas.setPointerCapture(e.pointerId)
-    canvas.style.cursor = 'grabbing'
+    if (s.view === '2d' && (e.button === 1 || (e.button === 0 && s.space))) {
+      e.preventDefault()
+      panning = { x: e.clientX, y: e.clientY }
+      canvas.setPointerCapture(e.pointerId)
+      canvas.style.cursor = 'grabbing'
+      return
+    }
+    if (e.button !== 0 || tween) return
+    if (onPointer('down', e, planAt(e.offsetX, e.offsetY))) {
+      gesture = true
+      orbit.enabled = false
+      canvas.setPointerCapture(e.pointerId)
+    }
   }
   function onPointerMove(e: PointerEvent) {
     if (panning) {
       pan(e.clientX - panning.x, e.clientY - panning.y)
       panning = { x: e.clientX, y: e.clientY }
-    }
-    onCursor(planAt(e.offsetX, e.offsetY))
+    } else onPointer('move', e, planAt(e.offsetX, e.offsetY))
   }
-  function onPointerUp() {
-    panning = null
-    canvas.style.cursor = s.space ? 'grab' : ''
+  function onPointerUp(e: PointerEvent) {
+    if (panning) {
+      panning = null
+      canvas.style.cursor = s.space ? 'grab' : ''
+      return
+    }
+    if (e.button === 0) onPointer('up', e, planAt(e.offsetX, e.offsetY))
+    if (gesture) {
+      gesture = false
+      orbit.enabled = s.view === '3d' && !tween
+    }
   }
   function onWheel(e: WheelEvent) {
     if (s.view !== '2d' || tween) return
@@ -167,10 +194,12 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
     updateOrtho()
     requestRender()
   }
-  canvas.addEventListener('pointerdown', onPointerDown)
+  el.addEventListener('pointerdown', onPointerDown, { capture: true })
   canvas.addEventListener('pointermove', onPointerMove)
   canvas.addEventListener('pointerup', onPointerUp)
-  canvas.addEventListener('pointerleave', () => onCursor(null))
+  canvas.addEventListener('pointerleave', e => onPointer('leave', e, null))
+  canvas.addEventListener('dblclick', e => onPointer('dblclick', e, planAt(e.offsetX, e.offsetY)))
+  canvas.addEventListener('contextmenu', e => e.preventDefault())
   canvas.addEventListener('wheel', onWheel, { passive: false })
   canvas.addEventListener('auxclick', e => e.preventDefault())
 
@@ -183,11 +212,29 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
   const ray = new THREE.Raycaster()
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0))
   const hit = new THREE.Vector3()
-  function planAt(x: number, y: number): Vec2 | null {
+  function aim(x: number, y: number) {
     ray.setFromCamera(new THREE.Vector2((x / s.w) * 2 - 1, -(y / s.h) * 2 + 1), camera())
+  }
+  function planAt(x: number, y: number): Vec2 | null {
+    aim(x, y)
     plane.constant = -s.elevation
     return ray.ray.intersectPlane(plane, hit) ? [hit.x, -hit.z] : null
   }
+
+  /** Nearest entity on the active floor under the screen point (objects carry userData.id / kind). */
+  function pick(x: number, y: number): { id: string; kind: string } | null {
+    const g = groups.get(floorState.activeId)
+    if (!g) return null
+    aim(x, y)
+    ray.layers.mask = camera().layers.mask | (1 << LAYER.pick)
+    for (const h of ray.intersectObject(g, true)) {
+      for (let o: THREE.Object3D | null = h.object; o && o !== g; o = o.parent) if (o.userData.id) return { id: o.userData.id, kind: o.userData.kind }
+    }
+    return null
+  }
+
+  /** Screen pixels per metre at the working plane. */
+  const ppm = () => (s.view === '2d' ? s.ppm : ppmFor(persp.position.distanceTo(orbit.target)))
 
   // ---------- floors ----------
   const groups = new Map<string, THREE.Group>()
@@ -247,6 +294,12 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
   }
 
   // ---------- loop ----------
+  const anims = new Set<(now: number) => boolean>()
+  /** Run fn every frame until it returns false. */
+  function animate(fn: (now: number) => boolean) {
+    anims.add(fn)
+    requestRender()
+  }
   let pending = false
   function requestRender() {
     if (pending) return
@@ -268,9 +321,12 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
       }
       requestRender()
     } else if (s.view === '3d' && orbit.update()) requestRender() // damping still settling
+    for (const fn of anims) if (!fn(now)) anims.delete(fn)
+    if (anims.size) requestRender()
 
     const cam = camera()
     grid.update(s.elevation)
+    overlay.position.y = s.elevation + 0.02
     const all = [...groups.values()]
     const ghosts = all.some(g => g.userData.vis === 'ghost')
     renderer.shadowMap.needsUpdate = true
@@ -321,7 +377,16 @@ export function createViewport(el: HTMLElement, onCursor: (p: Vec2 | null) => vo
     setFloors,
     setTheme,
     planAt,
+    pick,
+    ppm,
+    animate,
+    labelsEl: labels.domElement,
+    size: (v: THREE.Vector2) => v.set(s.w, s.h),
+    get activeFloorId() {
+      return floorState.activeId
+    },
     dispose() {
+      el.removeEventListener('pointerdown', onPointerDown, { capture: true })
       resize.disconnect()
       orbit.dispose()
       renderer.dispose()

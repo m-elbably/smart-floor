@@ -1,5 +1,5 @@
 // The single reactive app store and its actions. UI reads it; actions persist via repo + scheduleSave.
-// ponytail: project/floor actions write directly; M4 routes entity edits through the undoable command stack.
+// Project/floor actions write directly (not undoable); entity edits go through editor/commands.ts.
 import { reactive, computed } from 'vue'
 import type { Floor, Project, Vec2 } from '@/types'
 import type { View, FloorVisibility } from '@/scene/viewport'
@@ -8,6 +8,8 @@ import * as repo from '@/db/repo'
 import type { ProjectData } from '@/db/repo'
 import * as floorOps from './floors'
 import type { Units } from './units'
+import * as commands from './commands'
+import type { SnapKind } from './snapping'
 
 export interface Settings {
   units: Units
@@ -29,6 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   wallExterior: 0.25
 }
 
+export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window'
+
 export const store = reactive({
   projects: [] as Project[],
   data: null as ProjectData | null,
@@ -38,8 +42,23 @@ export const store = reactive({
   view: '2d' as View,
   floorVisibility: 'ghost' as FloorVisibility,
   cursor: null as Vec2 | null,
-  dark: false
+  dark: false,
+  selection: [] as string[],
+  hover: null as string | null,
+  tool: 'select' as ToolId,
+  toolOptions: { template: 'rect', door: 'single', window: 'standard' },
+  showLabels: true,
+  snapKind: null as SnapKind | null,
+  /** Short status-bar hint from the active tool. */
+  hint: '',
+  /** Transient message for a toast (n bumps so repeats still fire). */
+  notice: { text: '', n: 0 },
+  ui: { palette: false, help: false }
 })
+
+export function notify(text: string) {
+  store.notice = { text, n: store.notice.n + 1 }
+}
 
 export const activeFloor = computed(() => store.data?.floors.find(f => f.id === store.activeFloorId) ?? null)
 
@@ -111,10 +130,19 @@ export function openProject(id: string) {
   if (!data) throw new Error(`Project ${id} not found`)
   store.data = data
   store.activeFloorId = (data.floors.find(f => f.level === 0) ?? data.floors[0]).id
+  store.selection = []
+  bindCommands()
+}
+
+/** Commands edit store.data (reactive) + SQLite; every edit bumps updatedAt and schedules a save. */
+function bindCommands() {
+  commands.bind(store.data ? { db: useDb(), data: store.data, changed: touch } : null)
 }
 
 export function closeProject() {
   store.data = null
+  bindCommands()
+  store.selection = []
   store.activeFloorId = ''
   refreshProjects()
 }
@@ -176,4 +204,5 @@ export function removeFloor(id: string) {
   for (const t of repo.FLOOR_TABLES) (store.data[t] as { floorId: string }[]) = store.data[t].filter(e => e.floorId !== id)
   if (store.activeFloorId === id) store.activeFloorId = (floors.find(f => f.level === 0) ?? floors[0]).id
   commitFloors(floors)
+  bindCommands() // history may reference the deleted floor's entities
 }

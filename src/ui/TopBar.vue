@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { store, activeFloor, addFloor, closeProject, updateProject } from '@/editor/store'
 import { format } from '@/editor/units'
+import { undo, redo, history } from '@/editor/commands'
 
 const emit = defineEmits<{ floors: []; settings: [] }>()
 
@@ -17,13 +18,12 @@ const floorItems = computed(() =>
   [...(store.data?.floors ?? [])].sort((a, b) => b.level - a.level).map(f => ({ label: f.name, value: f.id }))
 )
 
-// PageUp / PageDown walk the floor stack [FR-12]
+// PageUp / PageDown (editor/shortcuts.ts) and these buttons walk the floor stack [FR-12]
 function stepFloor(dir: 1 | -1) {
   const sorted = [...(store.data?.floors ?? [])].sort((a, b) => a.level - b.level)
   const next = sorted[sorted.findIndex(f => f.id === store.activeFloorId) + dir]
   if (next) store.activeFloorId = next.id
 }
-defineShortcuts({ pageup: () => stepFloor(1), pagedown: () => stepFloor(-1) })
 
 const addItems = [
   [
@@ -67,6 +67,20 @@ const addItems = [
     </UDropdownMenu>
     <span v-if="activeFloor" class="text-xs text-muted">h {{ format(activeFloor.height, store.settings.units) }}</span>
     <div class="flex-1" />
+    <UFieldGroup>
+      <UTooltip :text="history.undo ? `Undo ${history.undo}` : 'Nothing to undo'" :kbds="['meta', 'z']">
+        <UButton icon="i-lucide-undo-2" color="neutral" variant="ghost" aria-label="Undo" :disabled="!history.undo" @click="undo" />
+      </UTooltip>
+      <UTooltip :text="history.redo ? `Redo ${history.redo}` : 'Nothing to redo'" :kbds="['meta', 'shift', 'z']">
+        <UButton icon="i-lucide-redo-2" color="neutral" variant="ghost" aria-label="Redo" :disabled="!history.redo" @click="redo" />
+      </UTooltip>
+    </UFieldGroup>
+    <UTooltip text="Command palette" :kbds="['meta', 'k']">
+      <UButton icon="i-lucide-search" color="neutral" variant="ghost" aria-label="Command palette" @click="store.ui.palette = true" />
+    </UTooltip>
+    <UTooltip text="Keyboard shortcuts" :kbds="['?']">
+      <UButton icon="i-lucide-keyboard" color="neutral" variant="ghost" aria-label="Keyboard shortcuts" @click="store.ui.help = true" />
+    </UTooltip>
     <UButton icon="i-lucide-settings" color="neutral" variant="ghost" aria-label="Settings" @click="emit('settings')" />
   </header>
 </template>

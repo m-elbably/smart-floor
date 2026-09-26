@@ -89,78 +89,99 @@ A milestone is done only when its **Verify** box is checked.
   - Headless Chrome (SwiftShader) check done: 2D ghost, zoom keeps the point under the cursor (4.00, 1.20 m before and after), Tab tween, orbit, all-floors mode, back to 2D, resize, dark theme, Front preset.
   - Notes: plan (x, y) maps to world (x, elevation, −y). The ghost floor is drawn in a first pass with `scene.overrideMaterial`. Floors above the active one are never shown in 2D. Shaders are warmed up with `compileAsync` so the first on-demand frame isn't missing the grid. Keyboard shortcuts act unless focus is in a text field, dialog or menu.
 
-## M4 — Editor core `[FR-90..96, FR-93]`
-- [ ] `editor/commands.ts`:
+## M4 — Editor core `[FR-90..96, FR-93]` ✅
+- [x] `editor/commands.ts`:
   - `execute`, `undo`, `redo`, capped at 200. `[FR-91]`
   - `AddEntity`, `RemoveEntity` (captures dependants), `UpdateEntity`, `Batch`.
-- [ ] `commands.check.ts`: add → update → remove → undo ×3 restores the original state (store and repo).
-- [ ] Connect commands to `scheduleSave`. The status bar shows the save state. `[FR-120]`
-- [ ] `scene/` store watcher: rebuild changed ids through the builders registry.
-- [ ] `editor/geometry.ts`: `area`, `centroid`, `ensureCCW`, `isSimple`, `pointInPolygon`, `projectOnSegment`, `segDistance`. `geometry.check.ts`.
-- [ ] `editor/snapping.ts`:
+- [x] `commands.check.ts`: add → update → remove → undo ×3 restores the original state (store and repo).
+- [x] Connect commands to `scheduleSave`. The status bar shows the save state. `[FR-120]`
+- [x] `scene/` store watcher: rebuild changed ids through the builders registry.
+- [x] `editor/geometry.ts`: `area`, `centroid`, `ensureCCW`, `isSimple`, `pointInPolygon`, `projectOnSegment`, `segDistance`. `geometry.check.ts`.
+- [x] `editor/snapping.ts`:
   - Candidates in priority order, per design §6.5.
   - Radii in pixels.
   - Alt bypasses snapping.
   - `snapping.check.ts`.
-- [ ] Snap guide lines and a pulse ring in the overlay. `[FR-93]`
-- [ ] Tool interface and tool manager. `scene/picking.ts` handles hover highlight. `[FR-90]`
-- [ ] Select tool: click, Shift+click, box select, Esc, Delete. `[FR-90]`
-- [ ] Clipboard: copy, cut, paste at the cursor, Ctrl+D duplicate. `[FR-92]`
-- [ ] `editor/shortcuts.ts`: one keymap table that feeds the tool keys, the help overlay (`?`) and the command palette (Ctrl+K). `[FR-95, FR-96]`
-- [ ] `ui/Inspector.vue`: generic property form driven by per-kind field definitions. Multi-select edits the common fields. `[FR-94]`
-- [ ] **Verify:** `npm run check` passes. Place a test box entity, move it, undo and redo it. The palette lists the actions.
+- [x] Snap guide lines and a pulse ring in the overlay. `[FR-93]`
+- [x] Tool interface and tool manager. `scene/picking.ts` handles hover highlight. `[FR-90]`
+- [x] Select tool: click, Shift+click, box select, Esc, Delete. `[FR-90]`
+- [x] Clipboard: copy, cut, paste at the cursor, Ctrl+D duplicate. `[FR-92]`
+- [x] `editor/shortcuts.ts`: one keymap table that feeds the tool keys, the help overlay (`?`) and the command palette (Ctrl+K). `[FR-95, FR-96]`
+- [x] `ui/Inspector.vue`: generic property form driven by per-kind field definitions. Multi-select edits the common fields. `[FR-94]`
+- [x] **Verify:** `npm run check` passes. Place a test box entity, move it, undo and redo it. The palette lists the actions.
+  - Done in headless Chrome with rooms (items arrive in M9): add, move, undo, redo, box select, duplicate, palette and help render. `commands.check.ts`, `geometry.check.ts`, `snapping.check.ts` and `model.check.ts` pass.
+  - As built: picking is `viewport.pick()` (no separate `picking.ts`), and the hover highlight is an overlay outline. Tools live in `editor/tools/` (index = manager, select, room [rect/polygon/template], wall, opening [door/window]). The keymap table is `editor/shortcuts.ts`. The viewport forwards pointer events in capture phase, so a tool that claims a drag pauses OrbitControls in 3D.
 
-## M5 — Rooms & walls `[FR-20..28, FR-70, FR-71, FR-75]`
-- [ ] Rectangle room tool with live width × depth and area labels. `[FR-20, FR-70]`
-- [ ] Polygon room tool:
+## M5 — Rooms & walls `[FR-20..28, FR-70, FR-71, FR-75]` ✅
+- [x] Rectangle room tool with live width × depth and area labels. `[FR-20, FR-70]`
+- [x] Polygon room tool:
   - Click to add vertices. Close on the first vertex or Enter.
   - Backspace and Esc work.
   - Reject shapes that fail `isSimple`.
   - `[FR-21]`
-- [ ] Numeric length entry while drawing (`parse()` from units). `[FR-75]`
-- [ ] `geometry.deriveWalls(rooms)`:
+- [x] Numeric length entry while drawing (`parse()` from units). `[FR-75]`
+- [x] `geometry.deriveWalls(rooms)`:
   - merge shared or overlapping edges
   - interior/exterior thickness
   - hosts
-- [ ] `geometry.check.ts` cases for `deriveWalls`: 2 adjacent rooms, a partial overlap, and an L-shape. `[FR-26, FR-27]`
-- [ ] Builders:
+- [x] `geometry.check.ts` cases for `deriveWalls`: 2 adjacent rooms, a partial overlap, and an L-shape. `[FR-26, FR-27]`
+- [x] Builders:
   - Floor `ShapeGeometry` with a material.
   - Walls as boxes, merged per floor.
   - Ceiling toggle.
   - `[FR-24]`
-- [ ] Room editing:
+- [x] Room editing:
   - Vertex handles.
   - Edge drag (parallel move).
   - Double-click an edge to insert a vertex.
   - Delete a vertex (keep at least 3).
   - Each gesture is one merged command.
   - `[FR-23]`
-- [ ] Room labels (name + m²) through CSS2D, toggleable. `[FR-71]`
-- [ ] Auto-naming ("Room N"). `[FR-25]`
-- [ ] Inspector fields: name, kind, floor material, wall colour, ceiling. `[FR-24]`
-- [ ] Room templates with a stamp preview and R to rotate:
+- [x] Room labels (name + m²) through CSS2D, toggleable. `[FR-71]`
+- [x] Auto-naming ("Room N"). `[FR-25]`
+- [x] Inspector fields: name, kind, floor material, wall colour, ceiling. `[FR-24]`
+- [x] Room templates with a stamp preview and R to rotate:
   - rect 4×3
   - L-shape
   - bathroom, kitchen, bedroom (their items are added in M9)
   - `[FR-22]`
-- [ ] Free wall tool (chain of segments, per-wall height and thickness). `[FR-28]`
-- [ ] **Verify:** draw two rooms that touch: one shared wall renders. Area labels are correct against a hand calculation. Vertex drag updates the walls live. Undo works for each gesture.
+- [x] Free wall tool (chain of segments, per-wall height and thickness). `[FR-28]`
+- [ ] **Verify (user, real app):** draw two rooms that touch: one shared wall renders. Area labels are correct against a hand calculation. Vertex drag updates the walls live. Undo works for each gesture.
+  - Headless check done: a shared wall renders once. A trapezoid 0,0/4,0/4,3/0,4 shows 14.00 m² (hand: (3+4)/2·4 = 14). Vertex and edge drags, insert/delete corner by double-click, polygon with a typed length, template with R rotate, and a typed rect `2x1.5` all work.
+  - As built:
+    - Exterior walls are offset outward, so the room polygon is the inner face. Areas are clear floor area.
+    - Shared (collinear, overlapping) edges become one interior wall, centred.
+    - Exterior walls extend by their thickness at convex corners only.
+    - Walls are one box per wall part, not merged per floor. Merge if wall counts ever hurt frame rate.
+    - Floor materials are flat colours, no textures yet.
+    - Ceilings are built on a walk-only layer.
+    - The grid sits 5 mm under the floor, so rooms hide it.
 
-## M6 — Doors & windows `[FR-30..33]`
-- [ ] `geometry.wallSegments(wall, openings)`, plus a check (openings at the ends, adjacent openings).
-- [ ] Door tool:
+## M6 — Doors & windows `[FR-30..33]` ✅
+- [x] `geometry.wallSegments(wall, openings)`, plus a check (openings at the ends, adjacent openings).
+- [x] Door tool:
   - hover a wall to see a ghost
   - snap along the wall
   - block overlaps and wall ends
   - presets
   - hinge/swing flip with F
   - `[FR-30]`
-- [ ] Window tool with presets and sill height. `[FR-31]`
-- [ ] Drag an opening along its wall. Inspector fields for width, height, sill and offset. `[FR-32]`
-- [ ] Wall builder uses the segments: lintel above an opening and a sill part below a window. Door leaf and glass pane meshes.
-- [ ] 2D symbols: door swing arc, window triple line. `[FR-33]`
-- [ ] Openings follow their host when a room is edited. An opening is removed, as part of the same command, when its edge becomes shorter than the opening.
-- [ ] **Verify:** place a door and a window, see the holes in 3D, and drag them along the wall. Resize the room smaller: the command removes the opening and undo restores it.
+- [x] Window tool with presets and sill height. `[FR-31]`
+- [x] Drag an opening along its wall. Inspector fields for width, height, sill and offset. `[FR-32]`
+- [x] Wall builder uses the segments: lintel above an opening and a sill part below a window. Door leaf and glass pane meshes.
+- [x] 2D symbols: door swing arc, window triple line. `[FR-33]`
+- [x] Openings follow their host when a room is edited. An opening is removed, as part of the same command, when its edge becomes shorter than the opening.
+- [ ] **Verify (user, real app):** place a door and a window, see the holes in 3D, and drag them along the wall. Resize the room smaller: the command removes the opening and undo restores it.
+  - Headless check done:
+    - The door and window holes show in 3D, with an open door leaf and glass.
+    - The door drags along its wall.
+    - Width 1.2 m set from the inspector.
+    - Shrinking the room so its top edge is 0.9 m removed the 1.2 m window in the same command (with a toast), and undo restored it.
+  - As built:
+    - Lintels, sills, the door leaf and glass are 3D-only (layer `model`), so the plan shows a clean gap with the arc or triple-line symbol (layer `plan`).
+    - Invisible pick boxes (layer `pick`) cover the opening and the door's swing area.
+    - An opening's hinge is relative to its host edge direction; "in" swings into the host room.
+    - While dragging, an opening stays on its own wall.
 
 ## M7 — Stairs `[FR-40..44]`
 - [ ] `editor/stairs.ts` `solve()` for straight, L, U and spiral, with comfort warnings. `stairs.check.ts`. `[FR-41, FR-42]`

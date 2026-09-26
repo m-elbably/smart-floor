@@ -1,14 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { store, activeFloor } from '@/editor/store'
 import { format } from '@/editor/units'
 import TopBar from './TopBar.vue'
 import FloorsModal from './FloorsModal.vue'
 import Viewport from './Viewport.vue'
+import Toolbar from './Toolbar.vue'
+import ToolOptions from './ToolOptions.vue'
+import Inspector from './Inspector.vue'
+import CommandPalette from './CommandPalette.vue'
+import HelpModal from './HelpModal.vue'
 
 const emit = defineEmits<{ settings: [] }>()
 const floorsOpen = ref(false)
 const viewport = ref<InstanceType<typeof Viewport>>()
+const toast = useToast()
+watch(
+  () => store.notice.n,
+  () => toast.add({ title: store.notice.text, icon: 'i-lucide-info', duration: 2500 })
+)
+const snapLabel = { vertex: 'corner', midpoint: 'midpoint', edge: 'wall', align: 'aligned', angle: 'angle', grid: 'grid' } as const
 
 const visibilityItems = [
   { label: 'Active floor only', value: 'active', icon: 'i-lucide-square' },
@@ -29,8 +40,13 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
   <div class="h-full flex flex-col">
     <TopBar @floors="floorsOpen = true" @settings="emit('settings')" />
 
-    <main class="flex-1 relative min-h-0">
+    <div class="flex-1 flex min-h-0">
+    <Toolbar />
+    <main class="flex-1 relative min-h-0 min-w-0">
       <Viewport ref="viewport" />
+      <div class="absolute top-3 left-3">
+        <ToolOptions />
+      </div>
       <div class="absolute top-3 right-3 flex gap-2">
         <USelect
           v-model="store.floorVisibility"
@@ -56,6 +72,8 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
         </UDropdownMenu>
       </div>
     </main>
+    <Inspector />
+    </div>
 
     <footer class="flex items-center gap-4 px-3 h-7 text-xs text-muted border-t border-default bg-default">
       <span>{{ store.settings.units === 'metric' ? 'Metric' : 'Imperial' }}</span>
@@ -64,6 +82,10 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
       <span v-if="store.cursor" class="tabular-nums">
         x {{ format(store.cursor[0], store.settings.units) }} &nbsp; y {{ format(store.cursor[1], store.settings.units) }}
       </span>
+      <span v-if="store.cursor && store.snapKind && store.snapKind !== 'grid'" class="flex items-center gap-1 text-warning">
+        <UIcon name="i-lucide-magnet" /> {{ snapLabel[store.snapKind] }}
+      </span>
+      <span class="truncate">{{ store.hint }}</span>
       <div class="flex-1" />
       <span class="flex items-center gap-1" :class="store.saveState === 'error' && 'text-error'">
         <UIcon :name="saveIcon[store.saveState]" :class="store.saveState === 'saving' && 'animate-spin'" />
@@ -72,5 +94,7 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
     </footer>
 
     <FloorsModal v-model:open="floorsOpen" />
+    <CommandPalette />
+    <HelpModal />
   </div>
 </template>
