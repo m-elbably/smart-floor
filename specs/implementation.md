@@ -223,33 +223,51 @@ A milestone is done only when its **Verify** box is checked.
     - Zones have the same corner, edge and move editing as rooms.
     - Snapped points are rounded to 1 µm.
 
-## M9 — Furniture & catalog `[FR-60..66, FR-51]`
-- [ ] `catalog/manifest.ts`: `CatalogItem` type (design §8).
-- [ ] `catalog/procedural.ts` builders:
+## M9 — Furniture & catalog `[FR-60..66, FR-51]` ✅
+- [x] `catalog/manifest.ts`: `CatalogItem` type (design §8).
+- [x] `catalog/procedural.ts` builders:
   - `sofa`, `chair`, `table`, `bed`, `cabinet`, `shelf`, `rug`
   - `appliance` (fridge/stove), `sink`, `toilet`, `bathtub`, `shower`
   - `plant`, `lamp`, `tree`, `bush`, `bench`, `parasol`
-- [ ] At least 30 manifest entries across all categories, per FR-64, including the outdoor items from FR-51. `[FR-64]`
-- [ ] `catalog/index.ts`: registry, category/tag search, offscreen thumbnail renderer with an in-memory cache.
-- [ ] `ui/CatalogPanel.vue`: category tabs, search, draggable thumbnail cards showing their dimensions. `[FR-60]`
-- [ ] Item placement:
+- [x] At least 30 manifest entries across all categories, per FR-64, including the outdoor items from FR-51. `[FR-64]`
+- [x] `catalog/index.ts`: registry, category/tag search, offscreen thumbnail renderer with an in-memory cache.
+- [x] `ui/CatalogPanel.vue`: category tabs, search, draggable thumbnail cards showing their dimensions. `[FR-60]`
+- [x] Item placement:
   - Drag from the catalog, or click then click on the canvas.
   - Ghost preview.
   - Grid snap, or wall snap for `placement: 'wall'`, facing into the room.
   - `[FR-61]`
-- [ ] Transforms:
+- [x] Transforms:
   - Drag to move.
   - R / Shift+R to rotate by 15°.
   - Arrow nudge (1 cm, or 10 cm with Shift).
   - `TransformControls` in 3D.
   - Scale limited to the manifest's limits.
   - `[FR-62, FR-84]`
-- [ ] Inspector fields: name, variant, elevation offset. `[FR-63]`
-- [ ] Instancing: group items by `catalog_id + variant` into an `InstancedMesh` per part. Picking uses the instance ids. `[NFR-01]`
-- [ ] Recent (last 8) and favourites, stored in `settings`. `[FR-66]`
-- [ ] Room templates from M5 now include their default items. `[FR-22]`
-- [ ] GLB manifest path: `GLTFLoader`, scaled to `size`. Test it with one sample file in `public/models/`. `[FR-65]`
-- [ ] **Verify:** furnish a living room and a bedroom. 200 items still run at about 60 fps in 3D (devtools FPS meter). Adding a new manifest entry makes it appear without any other code changes.
+- [x] Inspector fields: name, variant, elevation offset. `[FR-63]`
+- [x] Instancing: group items by `catalog_id + variant` into an `InstancedMesh` per part. Picking uses the instance ids. `[NFR-01]`
+- [x] Recent (last 8) and favourites, stored in `settings`. `[FR-66]`
+- [x] Room templates from M5 now include their default items. `[FR-22]`
+- [x] GLB manifest path: `GLTFLoader`, scaled to `size`. Test it with one sample file in `public/models/`. `[FR-65]`
+- [ ] **Verify (user, real app on a GPU):** furnish a living room and a bedroom. 200 items still run at about 60 fps in 3D (devtools FPS meter). Adding a new manifest entry makes it appear without any other code changes.
+  - Headless check done:
+    - Bedroom and bathroom templates arrive furnished.
+    - Items can be placed by clicking a card or by drag-and-drop.
+    - A bookshelf snaps flush to the wall inner face, facing into the room.
+    - R rotation, Shift+arrow / arrow nudge, and undo ×3 restore the item.
+    - The recent list updates.
+    - The GLB planter loads.
+    - The 3D gizmo shows.
+    - 211 items render; software GL gives ~46 ms/frame, which is not meaningful for FPS, so measure on a real GPU.
+    - `manifest.check.ts` builds every entry (37 items, all 7 categories) and checks that its bounding box matches its declared size.
+  - As built:
+    - The catalog lives in `src/catalog/` (`manifest.ts` = the list, `procedural.ts` = builders, `index.ts` = registry, GLB cache and thumbnails).
+    - Item local frame: front = −y in plan (+z in three.js).
+    - `Item.scale` is applied uniformly (`scale[0]`).
+    - Ceiling items measure `z` down from the ceiling.
+    - Thumbnails render one per frame, so the panel never stalls.
+    - The 3D gizmo moves in X/Z only. Rotation uses R / Shift+R or the inspector.
+    - `public/models/planter.glb` was generated with GLTFExporter as the GLB sample.
 
 ## M10 — Walk mode `[FR-82]`
 - [ ] `scene/walk.ts`:

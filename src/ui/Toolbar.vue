@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { store } from '@/editor/store'
 import { setTool } from '@/editor/tools'
-import { TOOLS } from '@/editor/shortcuts'
+import { TOOLS, openCatalog } from '@/editor/shortcuts'
 </script>
 
 <template>
@@ -10,10 +10,10 @@ import { TOOLS } from '@/editor/shortcuts'
       <UButton
         :icon="t.icon"
         :aria-label="t.label"
-        :color="store.tool === t.id ? 'primary' : 'neutral'"
-        :variant="store.tool === t.id ? 'soft' : 'ghost'"
+        :color="store.tool === t.id || (t.id === 'item' && store.catalogOpen) ? 'primary' : 'neutral'"
+        :variant="store.tool === t.id || (t.id === 'item' && store.catalogOpen) ? 'soft' : 'ghost'"
         size="lg"
-        @click="setTool(t.id)"
+        @click="t.id === 'item' ? (store.catalogOpen ? (store.catalogOpen = false) : openCatalog()) : setTool(t.id)"
       />
     </UTooltip>
   </nav>

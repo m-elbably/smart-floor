@@ -10,6 +10,7 @@ import { snapTargets, floorWalls, openingOnWall } from '../model'
 import { add, norm, scale, sub } from '../geometry'
 import type { Opening } from '@/types'
 import { stairShapes } from './shapes'
+import { itemFootprint } from '@/catalog'
 
 export interface Hit {
   id: string
@@ -164,6 +165,8 @@ function outline(id: string, color: string, width: number): Shape[] {
   if (s) return stairShapes(s, color, width)
   const z = data.zones.find(z => z.id === id)
   if (z) return [{ kind: 'line', points: z.polygon, closed: true, color, width }]
+  const it = data.items.find(i => i.id === id)
+  if (it) return [{ kind: 'line', points: itemFootprint(it), closed: true, color, width }]
   const w = data.walls.find(w => w.id === id)
   if (w) {
     const d = norm(sub(w.b, w.a))

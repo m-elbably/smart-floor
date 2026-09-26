@@ -1,7 +1,7 @@
 // Select tool: click / Shift+click / box select; drag to move; with one room or zone selected, drag its
 // vertices or edges, double-click an edge to add a vertex, double-click a vertex to delete it.
 // Drags preview straight into the store and commit one command on release.
-import type { Opening, Room, Stair, Vec2, Wall, Zone } from '@/types'
+import type { Item, Opening, Room, Stair, Vec2, Wall, Zone } from '@/types'
 import { COLORS, type Shape } from '@/scene/overlay'
 import { store, notify } from '../store'
 import { execute, batch, preview, updateEntity, removeEntity, find, type Command } from '../commands'
@@ -13,7 +13,7 @@ import { registerTool, type PlanEvent } from './index'
 import { placeOpening } from './opening'
 
 type Drag =
-  | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; stairs: Stair[]; zones: Zone[]; delta: Vec2 }
+  | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; stairs: Stair[]; zones: Zone[]; items: Item[]; delta: Vec2 }
   | { type: 'vertex'; room: Shaped; index: number }
   | { type: 'edge'; room: Shaped; index: number; start: Vec2 }
   | { type: 'opening'; orig: Opening }
@@ -64,6 +64,20 @@ function polygonCommand(room: Shaped, poly: Vec2[], oldPoly: Vec2[], label: stri
   return cmds.length === 1 ? cmds[0] : batch(label, cmds)
 }
 
+/** Move every movable selected entity by `d` (openings ride along with their hosts). */
+function translateSelection(d: Vec2, label: string): Command | null {
+  const data = store.data!
+  const sel = (id: string) => store.selection.includes(id)
+  const cmds: Command[] = [
+    ...data.rooms.filter(r => sel(r.id)).map(r => updateEntity('rooms', r.id, { polygon: r.polygon.map(p => add(p, d)) })),
+    ...data.zones.filter(z => sel(z.id)).map(z => updateEntity('zones', z.id, { polygon: z.polygon.map(p => add(p, d)) })),
+    ...data.walls.filter(w => sel(w.id)).map(w => updateEntity('walls', w.id, { a: add(w.a, d), b: add(w.b, d) })),
+    ...data.stairs.filter(s => sel(s.id)).map(s => updateEntity('stairs', s.id, { x: s.x + d[0], y: s.y + d[1] })),
+    ...data.items.filter(i => sel(i.id)).map(i => updateEntity('items', i.id, { x: i.x + d[0], y: i.y + d[1] }))
+  ]
+  return cmds.length ? batch(label, cmds) : null
+}
+
 function cancelDrag() {
   if (!drag) return
   if (drag.type === 'move') {
@@ -71,6 +85,7 @@ function cancelDrag() {
     for (const w of drag.walls) preview('walls', w.id, { a: w.a, b: w.b })
     for (const s of drag.stairs) preview('stairs', s.id, { x: s.x, y: s.y })
     for (const z of drag.zones) preview('zones', z.id, { polygon: z.polygon })
+    for (const it of drag.items) preview('items', it.id, { x: it.x, y: it.y })
   } else if (drag.type === 'vertex' || drag.type === 'edge') preview(drag.room.t, drag.room.id, { polygon: drag.room.polygon })
   else if (drag.type === 'opening') preview('openings', drag.orig.id, { host: drag.orig.host, along: drag.orig.along })
   drag = null
@@ -85,6 +100,8 @@ function inBox(id: string, lo: Vec2, hi: Vec2) {
   if (w) return inside(w.a) && inside(w.b)
   const z = d.zones.find(z => z.id === id)
   if (z) return z.polygon.every(inside)
+  const it = d.items.find(i => i.id === id)
+  if (it) return inside([it.x, it.y])
   const s = d.stairs.find(s => s.id === id)
   if (s) return toPlan(s, solve(s.kind, s.params, stairRise(d, s.floorId, store.settings.slab)).footprint).every(inside)
   const o = d.openings.find(o => o.id === id)
@@ -116,7 +133,8 @@ registerTool({
         rooms: clone(d.rooms.filter(r => ids.includes(r.id))),
         walls: clone(d.walls.filter(w => ids.includes(w.id))),
         stairs: clone(d.stairs.filter(s => ids.includes(s.id))),
-        zones: clone(d.zones.filter(z => ids.includes(z.id)))
+        zones: clone(d.zones.filter(z => ids.includes(z.id))),
+        items: clone(d.items.filter(i => ids.includes(i.id)))
       }
       return true
     }
@@ -132,6 +150,7 @@ registerTool({
       for (const w of drag.walls) preview('walls', w.id, { a: add(w.a, d), b: add(w.b, d) })
       for (const s of drag.stairs) preview('stairs', s.id, { x: s.x + d[0], y: s.y + d[1] })
       for (const z of drag.zones) preview('zones', z.id, { polygon: z.polygon.map(p => add(p, d)) })
+      for (const it of drag.items) preview('items', it.id, { x: it.x + d[0], y: it.y + d[1] })
     } else if (drag.type === 'vertex') {
       const poly = clone(drag.room.polygon)
       poly[drag.index] = e.p
@@ -168,7 +187,7 @@ registerTool({
     if (d.type === 'box') {
       const { min, max } = bbox([d.start, d.end])
       const d2 = store.data!
-      const ids = [...d2.rooms, ...d2.walls, ...d2.openings, ...d2.stairs, ...d2.zones].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
+      const ids = [...d2.rooms, ...d2.walls, ...d2.openings, ...d2.stairs, ...d2.zones, ...d2.items].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
       store.selection = e.shift ? [...new Set([...store.selection, ...ids])] : ids
     } else if (d.type === 'move') {
       if (!d.delta[0] && !d.delta[1]) return
@@ -178,6 +197,7 @@ registerTool({
         ...d.stairs.map(s => updateEntity('stairs', s.id, { x: s.x + d.delta[0], y: s.y + d.delta[1] }, { x: s.x, y: s.y })),
         ...d.zones.map(z => updateEntity('zones', z.id, { polygon: z.polygon.map(p => add(p, d.delta)) }, { polygon: z.polygon }))
       ]
+      cmds.push(...d.items.map(it => updateEntity('items', it.id, { x: it.x + d.delta[0], y: it.y + d.delta[1] }, { x: it.x, y: it.y })))
       if (cmds.length) execute(batch('Move', cmds))
     } else if (d.type === 'vertex' || d.type === 'edge') {
       const now = find(d.room.t, d.room.id)!.polygon
@@ -210,6 +230,19 @@ registerTool({
   },
   key(e) {
     if (e.key === 'Escape' && drag) return cancelDrag(), true
+    if (drag || e.ctrlKey || e.metaKey || e.altKey) return false
+    const items = store.data!.items.filter(i => store.selection.includes(i.id))
+    if (e.key.toLowerCase() === 'r' && items.length) {
+      const step = e.shiftKey ? -15 : 15
+      execute(batch('Rotate', items.map(it => updateEntity('items', it.id, { rotation: (((it.rotation + step) % 360) + 360) % 360 }))))
+      return true
+    }
+    const arrows: Record<string, Vec2> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }
+    if (arrows[e.key] && store.selection.length) {
+      const cmd = translateSelection(scale(arrows[e.key], e.shiftKey ? 0.1 : 0.01), 'Nudge')
+      if (cmd) execute(cmd)
+      return !!cmd
+    }
     return false
   },
   cancel: cancelDrag,

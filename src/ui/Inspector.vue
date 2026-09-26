@@ -10,7 +10,8 @@ import { warningText } from '@/editor/tools/shapes'
 import { format, formatArea } from '@/editor/units'
 import { FLOOR_MATERIALS, ROOM_KINDS, DOOR_PRESETS, WINDOW_PRESETS, ZONE_KINDS, POOL_DEPTH } from '@/editor/presets'
 import { deleteSelection } from '@/editor/clipboard'
-import type { Opening, Room, Stair, StairParams, Wall } from '@/types'
+import type { Item, Opening, Room, Stair, StairParams, Wall } from '@/types'
+import { catalogItem } from '@/catalog'
 import LengthInput from './LengthInput.vue'
 
 const sel = computed(() => store.selection.map(id => locate(id)).filter(x => x !== null))
@@ -24,6 +25,14 @@ const openings = computed(() => (table.value === 'openings' ? list<'openings'>()
 const walls = computed(() => (table.value === 'walls' ? list<'walls'>() : []))
 const stairs = computed(() => (table.value === 'stairs' ? list<'stairs'>() : []))
 const zones = computed(() => (table.value === 'zones' ? list<'zones'>() : []))
+const items = computed(() => (table.value === 'items' ? list<'items'>() : []))
+const item = computed<Item | null>(() => one(items.value))
+const itemDef = computed(() => catalogItem(common(items.value, 'catalogId') ?? ''))
+const scaleLimits = computed(() => itemDef.value?.scale ?? { min: 0.5, max: 2 })
+function setItems(patch: (it: Item) => Partial<Item>, label = 'Edit items') {
+  const cmds = items.value.map(it => updateEntity('items', it.id, patch(it)))
+  execute(cmds.length === 1 ? cmds[0] : batch(label, cmds))
+}
 const zoneItems = Object.entries(ZONE_KINDS).map(([value, z]) => ({ value, label: z.label, icon: z.icon }))
 function setZoneKind(kind: string) {
   const cmds = zones.value.map(z => updateEntity('zones', z.id, { kind: kind as never, props: kind === 'pool' ? { depth: POOL_DEPTH, ...z.props } : z.props }))
@@ -95,7 +104,7 @@ const title = computed(() => {
   if (!n) return ''
   if (!table.value) return `${n} items`
   const zk = common(zones.value, 'kind')
-  const label = { rooms: 'Room', walls: 'Wall', stairs: 'Stair', zones: zk ? ZONE_KINDS[zk].label : 'Zone', openings: common(openings.value, 'kind') === 'window' ? 'Window' : 'Door' }[table.value as string] ?? table.value
+  const label = { items: items.value.length === 1 ? (item.value?.name || itemDef.value?.name || 'Item') : 'Item', rooms: 'Room', walls: 'Wall', stairs: 'Stair', zones: zk ? ZONE_KINDS[zk].label : 'Zone', openings: common(openings.value, 'kind') === 'window' ? 'Window' : 'Door' }[table.value as string] ?? table.value
   return n === 1 ? label : `${n} ${label.toLowerCase()}s`
 })
 const u = () => store.settings.units
@@ -205,6 +214,59 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
           </UFormField>
         </div>
         <p v-if="wall" class="text-sm text-muted">Length {{ format(dist(wall.a, wall.b), u()) }}</p>
+      </template>
+
+      <!-- Furniture -->
+      <template v-else-if="items.length">
+        <UFormField v-if="item" label="Name">
+          <UInput
+            :model-value="item.name ?? ''"
+            :placeholder="itemDef?.name"
+            class="w-full"
+            @change="(e: Event) => setItems(() => ({ name: (e.target as HTMLInputElement).value.trim() || null }), 'Rename item')"
+          />
+        </UFormField>
+        <UFormField v-if="itemDef?.variants && itemDef.variants.length > 1" label="Colour / material">
+          <USelect
+            :model-value="common(items, 'variant') ?? itemDef.variants[0].id"
+            :items="itemDef.variants.map(v => ({ value: v.id, label: v.name }))"
+            class="w-full"
+            @update:model-value="(v: unknown) => setItems(() => ({ variant: v as string }), 'Change colour')"
+          />
+        </UFormField>
+        <div class="grid grid-cols-2 gap-3">
+          <UFormField :label="itemDef?.placement === 'ceiling' ? 'Gap to ceiling' : 'Height above floor'">
+            <LengthInput :model-value="items[0].z" :min="-1" :max="5" @update:model-value="v => setItems(() => ({ z: v }), 'Raise item')" />
+          </UFormField>
+          <UFormField label="Rotation">
+            <UInputNumber
+              :model-value="items[0].rotation"
+              :step="15"
+              size="sm"
+              :format-options="{ style: 'unit', unit: 'degree', maximumFractionDigits: 1 }"
+              @update:model-value="(v: number | null) => v !== null && setItems(() => ({ rotation: ((v % 360) + 360) % 360 }), 'Rotate')"
+            />
+          </UFormField>
+          <UFormField label="Scale" :help="`${scaleLimits.min}× – ${scaleLimits.max}×`">
+            <UInputNumber
+              :model-value="items[0].scale[0]"
+              :step="0.05"
+              :min="scaleLimits.min"
+              :max="scaleLimits.max"
+              size="sm"
+              @update:model-value="(v: number | null) => v && setItems(() => ({ scale: [v, v, v] }), 'Scale')"
+            />
+          </UFormField>
+        </div>
+        <dl v-if="itemDef && item" class="grid grid-cols-2 gap-y-1 text-sm pt-2 border-t border-default">
+          <dt class="text-muted">Size</dt>
+          <dd class="text-right tabular-nums">
+            {{ itemDef.size.map(v => format(v * item!.scale[0], u())).join(' × ') }}
+          </dd>
+          <dt class="text-muted">Catalog</dt>
+          <dd class="text-right">{{ itemDef.name }}</dd>
+        </dl>
+        <p class="text-xs text-muted">R / Shift+R rotates 15° · arrows nudge 1 cm (Shift: 10 cm)</p>
       </template>
 
       <!-- Garden zones -->

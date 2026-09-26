@@ -7,6 +7,7 @@ import TopBar from './TopBar.vue'
 import FloorsModal from './FloorsModal.vue'
 import Viewport from './Viewport.vue'
 import Toolbar from './Toolbar.vue'
+import CatalogPanel from './CatalogPanel.vue'
 import ToolOptions from './ToolOptions.vue'
 import Inspector from './Inspector.vue'
 import CommandPalette from './CommandPalette.vue'
@@ -44,6 +45,7 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
 
     <div class="flex-1 flex min-h-0">
     <Toolbar />
+    <CatalogPanel v-if="store.catalogOpen" />
     <main class="flex-1 relative min-h-0 min-w-0">
       <Viewport ref="viewport" />
       <div class="absolute top-3 left-3">

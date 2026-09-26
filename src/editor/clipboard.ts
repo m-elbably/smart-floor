@@ -1,5 +1,5 @@
 // Copy / cut / paste / duplicate of the selection. Pasted rooms keep their openings; everything gets new ids.
-import type { Opening, Room, Stair, Vec2, Wall, Zone } from '@/types'
+import type { Item, Opening, Room, Stair, Vec2, Wall, Zone } from '@/types'
 import { store, activeFloor, notify } from './store'
 import { execute, batch, addEntity, removeEntity, locate, type Command } from './commands'
 import { add, bbox, lerp, sub } from './geometry'
@@ -9,6 +9,7 @@ interface Clip {
   walls: Wall[]
   stairs: Stair[]
   zones: Zone[]
+  items: Item[]
   openings: Opening[]
   center: Vec2
 }
@@ -22,12 +23,13 @@ export function copy(): boolean {
   const walls = d.walls.filter(w => store.selection.includes(w.id))
   const stairs = d.stairs.filter(s => store.selection.includes(s.id))
   const zones = d.zones.filter(z => store.selection.includes(z.id))
+  const items = d.items.filter(i => store.selection.includes(i.id))
   const ids = new Set([...rooms, ...walls].map(e => e.id))
   const openings = d.openings.filter(o => ids.has('roomId' in o.host ? o.host.roomId : o.host.wallId))
-  const pts = [...rooms.flatMap(r => r.polygon), ...walls.flatMap(w => [w.a, w.b]), ...stairs.map(s => [s.x, s.y] as Vec2), ...zones.flatMap(z => z.polygon)]
+  const pts = [...rooms.flatMap(r => r.polygon), ...walls.flatMap(w => [w.a, w.b]), ...stairs.map(s => [s.x, s.y] as Vec2), ...zones.flatMap(z => z.polygon), ...items.map(i => [i.x, i.y] as Vec2)]
   if (!pts.length) return false
   const { min, max } = bbox(pts)
-  clip = clone({ rooms, walls, stairs, zones, openings, center: lerp(min, max, 0.5) })
+  clip = clone({ rooms, walls, stairs, zones, items, openings, center: lerp(min, max, 0.5) })
   return true
 }
 
@@ -43,12 +45,13 @@ export function paste(at?: Vec2) {
   for (const w of clip.walls) cmds.push(addEntity('walls', { ...clone(w), id: nid(w.id), floorId, a: add(w.a, offset), b: add(w.b, offset) }))
   for (const s of clip.stairs) cmds.push(addEntity('stairs', { ...clone(s), id: nid(s.id), floorId, x: s.x + offset[0], y: s.y + offset[1] }))
   for (const z of clip.zones) cmds.push(addEntity('zones', { ...clone(z), id: nid(z.id), floorId, polygon: z.polygon.map(p => add(p, offset)) }))
+  for (const it of clip.items) cmds.push(addEntity('items', { ...clone(it), id: nid(it.id), floorId, x: it.x + offset[0], y: it.y + offset[1] }))
   for (const o of clip.openings) {
     const host = 'roomId' in o.host ? { roomId: nid(o.host.roomId), edge: o.host.edge } : { wallId: nid(o.host.wallId) }
     cmds.push(addEntity('openings', { ...clone(o), id: nid(o.id), floorId, host }))
   }
   execute(batch('Paste', cmds))
-  store.selection = [...clip.rooms, ...clip.walls, ...clip.stairs, ...clip.zones].map(e => ids.get(e.id)!)
+  store.selection = [...clip.rooms, ...clip.walls, ...clip.stairs, ...clip.zones, ...clip.items].map(e => ids.get(e.id)!)
 }
 
 export function deleteSelection(label = 'Delete') {
@@ -66,5 +69,5 @@ export function cut() {
 
 export function duplicate() {
   if (copy()) paste()
-  else notify('Select rooms, walls or stairs to duplicate')
+  else notify('Select something to duplicate')
 }

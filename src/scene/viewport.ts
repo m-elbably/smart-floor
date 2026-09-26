@@ -147,6 +147,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
 
   let panning: { x: number; y: number } | null = null
   let gesture = false
+  let guard: (() => boolean) | null = null
   // Capture phase on the container, so a claimed drag can switch orbit off before OrbitControls sees it.
   function onPointerDown(e: PointerEvent) {
     if (e.target !== canvas) return
@@ -159,6 +160,11 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       return
     }
     if (e.button !== 0 || tween) return
+    if (s.view === '3d' && guard?.()) {
+      gesture = true // a gizmo handle has the pointer: no tool, no orbit
+      orbit.enabled = false
+      return
+    }
     if (onPointer('down', e, planAt(e.offsetX, e.offsetY))) {
       gesture = true
       orbit.enabled = false
@@ -177,7 +183,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       canvas.style.cursor = s.space ? 'grab' : ''
       return
     }
-    if (e.button === 0) onPointer('up', e, planAt(e.offsetX, e.offsetY))
+    if (e.button === 0 && !(s.view === '3d' && guard?.())) onPointer('up', e, planAt(e.offsetX, e.offsetY))
     if (gesture) {
       gesture = false
       orbit.enabled = s.view === '3d' && !tween
@@ -228,6 +234,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     aim(x, y)
     ray.layers.mask = camera().layers.mask | (1 << LAYER.pick)
     for (const h of ray.intersectObject(g, true)) {
+      if (h.instanceId !== undefined && h.object.userData.ids) return { id: h.object.userData.ids[h.instanceId], kind: h.object.userData.kind }
       for (let o: THREE.Object3D | null = h.object; o && o !== g; o = o.parent) if (o.userData.id) return { id: o.userData.id, kind: o.userData.kind }
     }
     return null
@@ -381,6 +388,9 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     ppm,
     animate,
     labelsEl: labels.domElement,
+    perspCamera: persp,
+    canvas,
+    setGuard: (fn: (() => boolean) | null) => (guard = fn),
     size: (v: THREE.Vector2) => v.set(s.w, s.h),
     get activeFloorId() {
       return floorState.activeId

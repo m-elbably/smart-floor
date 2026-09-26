@@ -19,6 +19,9 @@ export interface Settings {
   slab: number
   wallInterior: number
   wallExterior: number
+  /** Catalog: last placed item ids (newest first, max 8) and starred ones. */
+  recent: string[]
+  favourites: string[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -28,10 +31,12 @@ export const DEFAULT_SETTINGS: Settings = {
   floorHeight: 2.8,
   slab: 0.2,
   wallInterior: 0.15,
-  wallExterior: 0.25
+  wallExterior: 0.25,
+  recent: [],
+  favourites: []
 }
 
-export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair' | 'zone' | 'site'
+export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair' | 'zone' | 'site' | 'item'
 
 export const store = reactive({
   projects: [] as Project[],
@@ -46,7 +51,8 @@ export const store = reactive({
   selection: [] as string[],
   hover: null as string | null,
   tool: 'select' as ToolId,
-  toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight', zone: 'grass', wall: 'wall' },
+  toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight', zone: 'grass', wall: 'wall', item: '' },
+  catalogOpen: true,
   showLabels: true,
   snapKind: null as SnapKind | null,
   /** Short status-bar hint from the active tool. */

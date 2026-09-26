@@ -2,10 +2,11 @@
 import type { Room, Vec2 } from '@/types'
 import { COLORS, type Shape } from '@/scene/overlay'
 import { store, activeFloor, notify, type ToolId } from '../store'
-import { execute, addEntity } from '../commands'
+import { execute, addEntity, batch, type Command } from '../commands'
 import { area, centroid, dist, ensureCCW, isSimple, lerp, EPS, norm, sub, add, scale } from '../geometry'
 import { format, formatArea } from '../units'
 import { TEMPLATES } from '../presets'
+import { itemFootprint } from '@/catalog'
 import { registerTool, type PlanEvent } from './index'
 import { createEntry } from './entry'
 
@@ -18,7 +19,8 @@ export function uniqueName(base: string) {
   for (let i = base === 'Room' ? 1 : 2; ; i++) if (!names.has(`${base} ${i}`)) return `${base} ${i}`
 }
 
-export function addRoom(polygon: Vec2[], extra: Partial<Room> = {}) {
+/** Adds a room (plus any `more` commands, e.g. template furniture) as one undo step. */
+export function addRoom(polygon: Vec2[], extra: Partial<Room> = {}, more: Command[] = []) {
   const room: Room = {
     id: crypto.randomUUID(),
     floorId: activeFloor.value!.id,
@@ -31,7 +33,8 @@ export function addRoom(polygon: Vec2[], extra: Partial<Room> = {}) {
     ...extra
   }
   room.name = uniqueName(extra.name ?? 'Room')
-  execute(addEntity('rooms', room, `Add ${room.name}`))
+  const add = addEntity('rooms', room, `Add ${room.name}`)
+  execute(more.length ? batch(`Add ${room.name}`, [add, ...more]) : add)
   store.selection = [room.id]
   return room
 }
@@ -196,14 +199,12 @@ polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
 {
   let cur: Vec2 | null = null
   let turns = 0
-  const shape = (): Vec2[] => {
-    const t = TEMPLATES[store.toolOptions.template] ?? TEMPLATES.rect
-    return t.polygon.map(([x, y]) => {
-      let p: Vec2 = [x, y]
-      for (let i = 0; i < turns; i++) p = [-p[1], p[0]]
-      return [p[0] + cur![0], p[1] + cur![1]] as Vec2
-    })
+  const place = ([x, y]: Vec2): Vec2 => {
+    let p: Vec2 = [x, y]
+    for (let i = 0; i < turns; i++) p = [-p[1], p[0]]
+    return [p[0] + cur![0], p[1] + cur![1]]
   }
+  const shape = (): Vec2[] => (TEMPLATES[store.toolOptions.template] ?? TEMPLATES.rect).polygon.map(place)
   registerTool({
     id: 'template',
     snaps: () => true,
@@ -213,7 +214,12 @@ polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
     up(e) {
       if (e.moved || !cur) return
       const t = TEMPLATES[store.toolOptions.template] ?? TEMPLATES.rect
-      addRoom(shape(), { name: t.name, kind: t.kind, floorMaterial: t.floorMaterial })
+      const floorId = activeFloor.value!.id
+      const furniture = (t.items ?? []).map(i => {
+        const [x, y] = place(i.at)
+        return addEntity('items', { id: crypto.randomUUID(), floorId, catalogId: i.catalogId, x, y, z: 0, rotation: (i.rotation + turns * 90) % 360, scale: [1, 1, 1], variant: null, name: null })
+      })
+      addRoom(shape(), { name: t.name, kind: t.kind, floorMaterial: t.floorMaterial }, furniture)
     },
     key(e) {
       if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) return (turns = (turns + 1) % 4), true
@@ -229,7 +235,11 @@ polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
       return [
         { kind: 'fill', points: poly, color: COLORS.draw },
         { kind: 'line', points: poly, closed: true, color: COLORS.draw, dashed: true },
-        { kind: 'label', at: centroid(poly), text: `${t.name} · ${formatArea(area(poly), units())}` }
+        { kind: 'label', at: centroid(poly), text: `${t.name} · ${formatArea(area(poly), units())}` },
+        ...(t.items ?? []).map(i => {
+          const [x, y] = place(i.at)
+          return { kind: 'line' as const, points: itemFootprint({ catalogId: i.catalogId, x, y, rotation: i.rotation + turns * 90, scale: [1, 1, 1] }), closed: true, color: COLORS.draw, width: 1 }
+        })
       ]
     },
     hint: () => 'Click to place · R rotates'

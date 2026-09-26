@@ -27,8 +27,15 @@ export const TOOLS: { id: ToolId; label: string; icon: string; key: string }[] =
   { id: 'window', label: 'Window', icon: 'i-lucide-app-window', key: 'n' },
   { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's' },
   { id: 'zone', label: 'Garden zone', icon: 'i-lucide-trees', key: 'g' },
-  { id: 'site', label: 'Site boundary', icon: 'i-lucide-land-plot', key: 'b' }
+  { id: 'site', label: 'Site boundary', icon: 'i-lucide-land-plot', key: 'b' },
+  { id: 'item', label: 'Furniture (catalog)', icon: 'i-lucide-armchair', key: 'f' }
 ]
+
+export function openCatalog() {
+  store.catalogOpen = true
+  if (!store.toolOptions.item) return
+  setTool('item')
+}
 
 const stepFloor = (dir: 1 | -1) => {
   const sorted = [...(store.data?.floors ?? [])].sort((a, b) => a.level - b.level)
@@ -39,7 +46,7 @@ const stepFloor = (dir: 1 | -1) => {
 const hasSel = () => store.selection.length > 0
 
 export const actions: Action[] = [
-  ...TOOLS.map(t => ({ id: `tool.${t.id}`, label: t.label, group: 'Tools' as const, icon: t.icon, keys: [t.key], run: () => setTool(t.id) })),
+  ...TOOLS.map(t => ({ id: `tool.${t.id}`, label: t.label, group: 'Tools' as const, icon: t.icon, keys: [t.key], run: () => (t.id === 'item' ? openCatalog() : setTool(t.id)) })),
   { id: 'undo', label: 'Undo', group: 'Edit', icon: 'i-lucide-undo-2', keys: ['ctrl+z'], run: undo, enabled: () => !!history.undo },
   { id: 'redo', label: 'Redo', group: 'Edit', icon: 'i-lucide-redo-2', keys: ['ctrl+shift+z', 'ctrl+y'], run: redo, enabled: () => !!history.redo },
   { id: 'copy', label: 'Copy', group: 'Edit', icon: 'i-lucide-copy', keys: ['ctrl+c'], run: () => void copy(), enabled: hasSel },
@@ -55,7 +62,7 @@ export const actions: Action[] = [
     keys: ['ctrl+a'],
     run: () => {
       const d = store.data!
-      store.selection = [...d.rooms, ...d.walls, ...d.openings, ...d.stairs, ...d.zones].filter(e => e.floorId === store.activeFloorId).map(e => e.id)
+      store.selection = [...d.rooms, ...d.walls, ...d.openings, ...d.stairs, ...d.zones, ...d.items].filter(e => e.floorId === store.activeFloorId).map(e => e.id)
     }
   },
   {

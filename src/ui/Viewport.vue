@@ -4,6 +4,7 @@ import { store } from '@/editor/store'
 import { createViewport, type Viewport } from '@/scene/viewport'
 import { createOverlay } from '@/scene/overlay'
 import { attachScene } from '@/scene/sync'
+import { attachGizmo } from '@/scene/gizmo'
 import { attachTools, onPointer } from '@/editor/tools'
 import '@/editor/tools/select'
 import '@/editor/tools/room'
@@ -11,6 +12,7 @@ import '@/editor/tools/wall'
 import '@/editor/tools/opening'
 import '@/editor/tools/stair'
 import '@/editor/tools/zone'
+import '@/editor/tools/item'
 import { handleKey } from '@/editor/shortcuts'
 
 const el = ref<HTMLElement>()
@@ -27,23 +29,35 @@ function onKeyDown(e: KeyboardEvent) {
   if (e.code === 'Space' && !(e.target as HTMLElement).closest('button, a')) {
     e.preventDefault()
     vp.setSpace(true)
-  } else if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey) {
-    e.preventDefault()
+  } else if (handleKey(e)) e.preventDefault() // arrows nudge a selection…
+  else if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault() // …otherwise they pan
     vp.pan(...ARROWS[e.key])
-  } else if (handleKey(e)) e.preventDefault()
+  }
 }
 const onKeyUp = (e: KeyboardEvent) => e.code === 'Space' && vp?.setSpace(false)
 
 onMounted(() => {
   const v = (vp = createViewport(el.value!, onPointer))
   const overlay = createOverlay(v)
-  detach = [attachScene(v), attachTools(v, overlay)]
+  detach = [attachScene(v), attachTools(v, overlay), attachGizmo(v)]
   if (import.meta.env.DEV) Object.assign((window as any).sf ?? {}, { vp: v })
   watchEffect(() => v.setFloors(store.data?.floors ?? [], store.activeFloorId, store.floorVisibility))
   watch(() => store.view, view => v.setView(view), { immediate: true })
   watch(() => store.dark, d => v.setTheme(d), { immediate: true })
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
+  // Drag from the catalog: the item tool previews on dragover and places on drop.
+  el.value!.addEventListener('dragover', e => {
+    if (store.tool !== 'item') return
+    e.preventDefault()
+    onPointer('move', e, v.planAt(e.offsetX, e.offsetY))
+  })
+  el.value!.addEventListener('drop', e => {
+    if (store.tool !== 'item') return
+    e.preventDefault()
+    onPointer('up', e, v.planAt(e.offsetX, e.offsetY))
+  })
 })
 
 onBeforeUnmount(() => {

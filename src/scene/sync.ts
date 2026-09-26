@@ -8,6 +8,8 @@ import { area } from '@/editor/geometry'
 import { floorWalls, hostLine, openingOnWall, stairRise } from '@/editor/model'
 import { solve, toPlan, stairwellHoles } from '@/editor/stairs'
 import { isConvex } from '@/editor/geometry'
+import { buildItems } from './items'
+import { catalogState } from '@/catalog'
 import { buildRoom, buildWalls, buildStair, buildZone, buildSite, dispose, openingFrame, type PlacedOpening } from './builders'
 import { ZONE_KINDS } from '@/editor/presets'
 import type { Viewport } from './viewport'
@@ -17,6 +19,7 @@ export function attachScene(vp: Viewport) {
   const walls = new Map<string, { key: string; obj: THREE.Object3D }>()
   const stairs = new Map<string, { key: string; obj: THREE.Object3D }>()
   const zones = new Map<string, { key: string; obj: THREE.Object3D }>()
+  const items = new Map<string, { key: string; obj: THREE.Object3D }>() // per floor
   let site: { key: string; obj: THREE.Object3D } | null = null
 
   function rebuild() {
@@ -110,14 +113,26 @@ export function attachScene(vp: Viewport) {
     }
     for (const [id, v] of walls) if (!floorsSeen.has(id)) (dispose(v.obj), walls.delete(id))
 
+    for (const f of data?.floors ?? []) {
+      const list = data!.items.filter(i => i.floorId === f.id)
+      const key = JSON.stringify([list, f.height, catalogState.version])
+      if (items.get(f.id)?.key === key) continue
+      const old = items.get(f.id)
+      if (old) dispose(old.obj)
+      const obj = buildItems(list, f.height)
+      vp.floorGroup(f.id).add(obj)
+      items.set(f.id, { key, obj })
+    }
+    for (const [id, v] of items) if (!floorsSeen.has(id)) (dispose(v.obj), items.delete(id))
+
     // Drop selection/hover that no longer exists (after undo, delete, floor removal).
-    const exists = (id: string) => !!data && (['rooms', 'walls', 'openings', 'stairs', 'zones'] as const).some(t => data[t].some(e => e.id === id))
+    const exists = (id: string) => !!data && (['rooms', 'walls', 'openings', 'stairs', 'zones', 'items'] as const).some(t => data[t].some(e => e.id === id))
     if (store.selection.some(id => !exists(id))) store.selection = store.selection.filter(exists)
     vp.requestRender()
   }
 
   const stop = watch(
-    () => [store.data, store.settings.units, store.settings.wallInterior, store.settings.wallExterior, store.settings.slab],
+    () => [store.data, catalogState.version, store.settings.units, store.settings.wallInterior, store.settings.wallExterior, store.settings.slab],
     rebuild,
     { deep: true, immediate: true }
   )
@@ -129,7 +144,7 @@ export function attachScene(vp: Viewport) {
   return () => {
     stop()
     stopLabels()
-    for (const v of [...rooms.values(), ...walls.values(), ...stairs.values(), ...zones.values()]) dispose(v.obj)
+    for (const v of [...rooms.values(), ...walls.values(), ...stairs.values(), ...zones.values(), ...items.values()]) dispose(v.obj)
     if (site) dispose(site.obj)
   }
 }
