@@ -8,7 +8,7 @@ import { hostLine, fitAlong, stairRise } from '@/editor/model'
 import { solve } from '@/editor/stairs'
 import { warningText } from '@/editor/tools/shapes'
 import { format, formatArea } from '@/editor/units'
-import { FLOOR_MATERIALS, ROOM_KINDS, DOOR_PRESETS, WINDOW_PRESETS } from '@/editor/presets'
+import { FLOOR_MATERIALS, ROOM_KINDS, DOOR_PRESETS, WINDOW_PRESETS, ZONE_KINDS, POOL_DEPTH } from '@/editor/presets'
 import { deleteSelection } from '@/editor/clipboard'
 import type { Opening, Room, Stair, StairParams, Wall } from '@/types'
 import LengthInput from './LengthInput.vue'
@@ -23,6 +23,12 @@ const rooms = computed(() => (table.value === 'rooms' ? list<'rooms'>() : []))
 const openings = computed(() => (table.value === 'openings' ? list<'openings'>() : []))
 const walls = computed(() => (table.value === 'walls' ? list<'walls'>() : []))
 const stairs = computed(() => (table.value === 'stairs' ? list<'stairs'>() : []))
+const zones = computed(() => (table.value === 'zones' ? list<'zones'>() : []))
+const zoneItems = Object.entries(ZONE_KINDS).map(([value, z]) => ({ value, label: z.label, icon: z.icon }))
+function setZoneKind(kind: string) {
+  const cmds = zones.value.map(z => updateEntity('zones', z.id, { kind: kind as never, props: kind === 'pool' ? { depth: POOL_DEPTH, ...z.props } : z.props }))
+  execute(cmds.length === 1 ? cmds[0] : batch('Edit zones', cmds))
+}
 
 // ---------- stairs ----------
 const stairSol = (s: Stair) => solve(s.kind, s.params, stairRise(store.data!, s.floorId, store.settings.slab))
@@ -88,7 +94,8 @@ const title = computed(() => {
   const n = sel.value.length
   if (!n) return ''
   if (!table.value) return `${n} items`
-  const label = { rooms: 'Room', walls: 'Wall', stairs: 'Stair', openings: common(openings.value, 'kind') === 'window' ? 'Window' : 'Door' }[table.value as string] ?? table.value
+  const zk = common(zones.value, 'kind')
+  const label = { rooms: 'Room', walls: 'Wall', stairs: 'Stair', zones: zk ? ZONE_KINDS[zk].label : 'Zone', openings: common(openings.value, 'kind') === 'window' ? 'Window' : 'Door' }[table.value as string] ?? table.value
   return n === 1 ? label : `${n} ${label.toLowerCase()}s`
 })
 const u = () => store.settings.units
@@ -198,6 +205,25 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
           </UFormField>
         </div>
         <p v-if="wall" class="text-sm text-muted">Length {{ format(dist(wall.a, wall.b), u()) }}</p>
+      </template>
+
+      <!-- Garden zones -->
+      <template v-else-if="zones.length">
+        <UFormField label="Type">
+          <USelect :model-value="common(zones, 'kind')" :items="zoneItems" placeholder="Mixed" class="w-full" @update:model-value="(v: unknown) => setZoneKind(v as string)" />
+        </UFormField>
+        <UFormField v-if="common(zones, 'kind') === 'pool'" label="Depth">
+          <LengthInput
+            :model-value="Number(zones[0].props.depth ?? POOL_DEPTH)"
+            :min="0.3"
+            :max="4"
+            @update:model-value="v => execute(batch('Pool depth', zones.map(z => updateEntity('zones', z.id, { props: { ...z.props, depth: v } }))))"
+          />
+        </UFormField>
+        <dl class="grid grid-cols-2 gap-y-1 text-sm pt-2 border-t border-default">
+          <dt class="text-muted">Area</dt>
+          <dd class="text-right tabular-nums">{{ formatArea(zones.reduce((s, z) => s + area(z.polygon), 0), u()) }}</dd>
+        </dl>
       </template>
 
       <!-- Stairs -->

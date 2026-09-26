@@ -27,7 +27,14 @@ const ANGLE_TOL = 4
 
 const round = (v: number, step: number) => (step > 0 ? Math.round(v / step) * step : v)
 
+/** Snapped points are rounded to the micrometre so 0.1 + 0.2 style noise never reaches the database. */
 export function snap(raw: Vec2, c: SnapCtx): SnapHit {
+  const hit = snapRaw(raw, c)
+  if (hit.kind) hit.point = [Math.round(hit.point[0] * 1e6) / 1e6, Math.round(hit.point[1] * 1e6) / 1e6]
+  return hit
+}
+
+function snapRaw(raw: Vec2, c: SnapCtx): SnapHit {
   const r = (px: number) => px / c.ppm
   const nearest = <T>(items: T[], d: (x: T) => number, max: number) => {
     let best: T | null = null

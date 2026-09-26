@@ -1,7 +1,7 @@
-// Select tool: click / Shift+click / box select; drag to move; with one room selected, drag its
+// Select tool: click / Shift+click / box select; drag to move; with one room or zone selected, drag its
 // vertices or edges, double-click an edge to add a vertex, double-click a vertex to delete it.
 // Drags preview straight into the store and commit one command on release.
-import type { Opening, Room, Stair, Vec2, Wall } from '@/types'
+import type { Opening, Room, Stair, Vec2, Wall, Zone } from '@/types'
 import { COLORS, type Shape } from '@/scene/overlay'
 import { store, notify } from '../store'
 import { execute, batch, preview, updateEntity, removeEntity, find, type Command } from '../commands'
@@ -13,9 +13,9 @@ import { registerTool, type PlanEvent } from './index'
 import { placeOpening } from './opening'
 
 type Drag =
-  | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; stairs: Stair[]; delta: Vec2 }
-  | { type: 'vertex'; room: Room; index: number }
-  | { type: 'edge'; room: Room; index: number; start: Vec2 }
+  | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; stairs: Stair[]; zones: Zone[]; delta: Vec2 }
+  | { type: 'vertex'; room: Shaped; index: number }
+  | { type: 'edge'; room: Shaped; index: number; start: Vec2 }
   | { type: 'opening'; orig: Opening }
   | { type: 'box'; start: Vec2; end: Vec2; screenBox: boolean }
 
@@ -24,9 +24,16 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
 const grid = () => store.settings.grid
 const snapDelta = (d: Vec2, free: boolean): Vec2 => (free || !grid() ? d : [Math.round(d[0] / grid()) * grid(), Math.round(d[1] / grid()) * grid()])
 
-function selectedRoom(): Room | null {
+/** Something with an editable outline: a room or a garden zone. */
+type Shaped = { t: 'rooms' | 'zones'; id: string; polygon: Vec2[] }
+
+function selectedRoom(): Shaped | null {
   if (store.selection.length !== 1) return null
-  return store.data!.rooms.find(r => r.id === store.selection[0]) ?? null
+  const id = store.selection[0]
+  const r = store.data!.rooms.find(r => r.id === id)
+  if (r) return { t: 'rooms', id, polygon: r.polygon }
+  const z = store.data!.zones.find(z => z.id === id)
+  return z ? { t: 'zones', id, polygon: z.polygon } : null
 }
 
 /** Vertex or edge of the single selected room under the cursor. */
@@ -41,14 +48,15 @@ function handleAt(p: Vec2, ppm: number) {
 }
 
 /** Polygon change + its openings refit (moved along, re-hosted, or removed) as one command. */
-function polygonCommand(room: Room, poly: Vec2[], oldPoly: Vec2[], label: string): Command | null {
+function polygonCommand(room: Shaped, poly: Vec2[], oldPoly: Vec2[], label: string): Command | null {
   if (!isSimple(poly)) {
-    notify('That would make the room outline cross itself')
+    notify('That would make the outline cross itself')
     return null
   }
-  const cmds: Command[] = [updateEntity('rooms', room.id, { polygon: poly }, { polygon: oldPoly }, label)]
+  const cmds: Command[] = [updateEntity(room.t, room.id, { polygon: poly }, { polygon: oldPoly }, label)]
   const removed: string[] = []
-  for (const r of refitOpenings(store.data!, room, poly, oldPoly)) {
+  const refits = room.t === 'rooms' ? refitOpenings(store.data!, find('rooms', room.id)!, poly, oldPoly) : []
+  for (const r of refits) {
     if (r.patch) cmds.push(updateEntity('openings', r.opening.id, r.patch))
     else (cmds.push(removeEntity('openings', r.opening.id)), removed.push(r.opening.kind))
   }
@@ -62,7 +70,8 @@ function cancelDrag() {
     for (const r of drag.rooms) preview('rooms', r.id, { polygon: r.polygon })
     for (const w of drag.walls) preview('walls', w.id, { a: w.a, b: w.b })
     for (const s of drag.stairs) preview('stairs', s.id, { x: s.x, y: s.y })
-  } else if (drag.type === 'vertex' || drag.type === 'edge') preview('rooms', drag.room.id, { polygon: drag.room.polygon })
+    for (const z of drag.zones) preview('zones', z.id, { polygon: z.polygon })
+  } else if (drag.type === 'vertex' || drag.type === 'edge') preview(drag.room.t, drag.room.id, { polygon: drag.room.polygon })
   else if (drag.type === 'opening') preview('openings', drag.orig.id, { host: drag.orig.host, along: drag.orig.along })
   drag = null
 }
@@ -74,6 +83,8 @@ function inBox(id: string, lo: Vec2, hi: Vec2) {
   if (r) return r.polygon.every(inside)
   const w = d.walls.find(w => w.id === id)
   if (w) return inside(w.a) && inside(w.b)
+  const z = d.zones.find(z => z.id === id)
+  if (z) return z.polygon.every(inside)
   const s = d.stairs.find(s => s.id === id)
   if (s) return toPlan(s, solve(s.kind, s.params, stairRise(d, s.floorId, store.settings.slab)).footprint).every(inside)
   const o = d.openings.find(o => o.id === id)
@@ -104,7 +115,8 @@ registerTool({
         delta: [0, 0],
         rooms: clone(d.rooms.filter(r => ids.includes(r.id))),
         walls: clone(d.walls.filter(w => ids.includes(w.id))),
-        stairs: clone(d.stairs.filter(s => ids.includes(s.id)))
+        stairs: clone(d.stairs.filter(s => ids.includes(s.id))),
+        zones: clone(d.zones.filter(z => ids.includes(z.id)))
       }
       return true
     }
@@ -119,10 +131,11 @@ registerTool({
       for (const r of drag.rooms) preview('rooms', r.id, { polygon: r.polygon.map(p => add(p, d)) })
       for (const w of drag.walls) preview('walls', w.id, { a: add(w.a, d), b: add(w.b, d) })
       for (const s of drag.stairs) preview('stairs', s.id, { x: s.x + d[0], y: s.y + d[1] })
+      for (const z of drag.zones) preview('zones', z.id, { polygon: z.polygon.map(p => add(p, d)) })
     } else if (drag.type === 'vertex') {
       const poly = clone(drag.room.polygon)
       poly[drag.index] = e.p
-      preview('rooms', drag.room.id, { polygon: poly })
+      preview(drag.room.t, drag.room.id, { polygon: poly })
     } else if (drag.type === 'edge') {
       const [a, b] = edges(drag.room.polygon)[drag.index]
       const n = norm([b[1] - a[1], a[0] - b[0]])
@@ -132,7 +145,7 @@ registerTool({
       const j = (drag.index + 1) % poly.length
       poly[drag.index] = add(a, scale(n, off))
       poly[j] = add(b, scale(n, off))
-      preview('rooms', drag.room.id, { polygon: poly })
+      preview(drag.room.t, drag.room.id, { polygon: poly })
     } else if (drag.type === 'opening') {
       const at = placeOpening(e.raw, drag.orig.width, e.ppm, !e.alt, drag.orig.id, drag.orig.host)
       if (at?.valid) preview('openings', drag.orig.id, { host: at.host, along: at.along })
@@ -155,22 +168,23 @@ registerTool({
     if (d.type === 'box') {
       const { min, max } = bbox([d.start, d.end])
       const d2 = store.data!
-      const ids = [...d2.rooms, ...d2.walls, ...d2.openings, ...d2.stairs].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
+      const ids = [...d2.rooms, ...d2.walls, ...d2.openings, ...d2.stairs, ...d2.zones].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
       store.selection = e.shift ? [...new Set([...store.selection, ...ids])] : ids
     } else if (d.type === 'move') {
       if (!d.delta[0] && !d.delta[1]) return
       const cmds = [
         ...d.rooms.map(r => updateEntity('rooms', r.id, { polygon: r.polygon.map(p => add(p, d.delta)) }, { polygon: r.polygon })),
         ...d.walls.map(w => updateEntity('walls', w.id, { a: add(w.a, d.delta), b: add(w.b, d.delta) }, { a: w.a, b: w.b })),
-        ...d.stairs.map(s => updateEntity('stairs', s.id, { x: s.x + d.delta[0], y: s.y + d.delta[1] }, { x: s.x, y: s.y }))
+        ...d.stairs.map(s => updateEntity('stairs', s.id, { x: s.x + d.delta[0], y: s.y + d.delta[1] }, { x: s.x, y: s.y })),
+        ...d.zones.map(z => updateEntity('zones', z.id, { polygon: z.polygon.map(p => add(p, d.delta)) }, { polygon: z.polygon }))
       ]
       if (cmds.length) execute(batch('Move', cmds))
     } else if (d.type === 'vertex' || d.type === 'edge') {
-      const now = find('rooms', d.room.id)!.polygon
+      const now = find(d.room.t, d.room.id)!.polygon
       if (JSON.stringify(now) === JSON.stringify(d.room.polygon)) return
-      const cmd = polygonCommand(d.room, clone(now), d.room.polygon, d.type === 'vertex' ? 'Move corner' : 'Move wall')
+      const cmd = polygonCommand(d.room, clone(now), d.room.polygon, d.type === 'vertex' ? 'Move corner' : 'Move edge')
       if (cmd) execute(cmd)
-      else preview('rooms', d.room.id, { polygon: d.room.polygon })
+      else preview(d.room.t, d.room.id, { polygon: d.room.polygon })
     } else if (d.type === 'opening') {
       const now = find('openings', d.orig.id)!
       if (now.along !== d.orig.along || JSON.stringify(now.host) !== JSON.stringify(d.orig.host))
@@ -182,7 +196,7 @@ registerTool({
     if (!h) return
     const poly = clone(h.room.polygon)
     if ('vertex' in h) {
-      if (poly.length <= 3) return notify('A room needs at least 3 corners')
+      if (poly.length <= 3) return notify('An outline needs at least 3 corners')
       poly.splice(h.vertex!, 1)
       const cmd = polygonCommand(h.room, poly, h.room.polygon, 'Delete corner')
       if (cmd) execute(cmd)

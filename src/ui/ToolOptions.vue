@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { store } from '@/editor/store'
-import { TEMPLATES, DOOR_PRESETS, WINDOW_PRESETS } from '@/editor/presets'
+import { TEMPLATES, DOOR_PRESETS, WINDOW_PRESETS, ZONE_KINDS } from '@/editor/presets'
 import { cancelTool } from '@/editor/tools'
 
 const opts = computed(() => {
   const t = store.tool
   if (t === 'template') return { key: 'template' as const, items: Object.entries(TEMPLATES).map(([value, p]) => ({ value, label: p.label, icon: p.icon })) }
   if (t === 'door') return { key: 'door' as const, items: Object.entries(DOOR_PRESETS).map(([value, p]) => ({ value, label: p.label })) }
+  if (t === 'zone') return { key: 'zone' as const, items: Object.entries(ZONE_KINDS).map(([value, z]) => ({ value, label: z.label, icon: z.icon })) }
+  if (t === 'wall')
+    return {
+      key: 'wall' as const,
+      items: [
+        { value: 'wall', label: 'Wall', icon: 'i-lucide-brick-wall' },
+        { value: 'fence', label: 'Fence', icon: 'i-lucide-fence' }
+      ]
+    }
   if (t === 'stair')
     return {
       key: 'stair' as const,

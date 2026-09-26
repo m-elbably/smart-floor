@@ -158,6 +158,17 @@ export function batch(label: string, cmds: Command[]): Command {
   }
 }
 
+/** Undoable change to the open project's own row (e.g. the site boundary). */
+export function updateProjectCmd(patch: Partial<ProjectData['project']>, label = 'Edit project'): Command {
+  const p = () => need().data.project
+  const before = clone(Object.fromEntries(Object.keys(patch).map(k => [k, (p() as unknown as Record<string, unknown>)[k]])))
+  const apply = (v: Record<string, unknown>) => {
+    Object.assign(p(), clone(v))
+    repo.update(need().db, 'projects', p().id, v as never)
+  }
+  return { label, do: () => apply(patch as Record<string, unknown>), undo: () => apply(before) }
+}
+
 /** Find which table an id lives in. */
 export function locate(id: string): { t: EntityTable; e: Entity } | null {
   for (const t of repo.FLOOR_TABLES as readonly EntityTable[]) {

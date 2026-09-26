@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wallExterior: 0.25
 }
 
-export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair'
+export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair' | 'zone' | 'site'
 
 export const store = reactive({
   projects: [] as Project[],
@@ -46,7 +46,7 @@ export const store = reactive({
   selection: [] as string[],
   hover: null as string | null,
   tool: 'select' as ToolId,
-  toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight' },
+  toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight', zone: 'grass', wall: 'wall' },
   showLabels: true,
   snapKind: null as SnapKind | null,
   /** Short status-bar hint from the active tool. */

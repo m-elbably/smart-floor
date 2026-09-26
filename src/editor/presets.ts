@@ -10,6 +10,15 @@ export const FLOOR_MATERIALS: Record<string, { label: string; color: string }> =
   concrete: { label: 'Concrete', color: '#a9a9a9' }
 }
 
+export const ZONE_KINDS: Record<string, { label: string; color: string; icon: string }> = {
+  grass: { label: 'Grass', color: '#7fb069', icon: 'i-lucide-sprout' },
+  patio: { label: 'Patio', color: '#cdbba2', icon: 'i-lucide-grid-2x2' },
+  path: { label: 'Path', color: '#bdb3a4', icon: 'i-lucide-footprints' },
+  driveway: { label: 'Driveway', color: '#8f8f8f', icon: 'i-lucide-car' },
+  pool: { label: 'Pool', color: '#4fb3d9', icon: 'i-lucide-waves' }
+}
+export const POOL_DEPTH = 1.5
+
 export const ROOM_KINDS = ['generic', 'living', 'bedroom', 'kitchen', 'bathroom', 'dining', 'office', 'hallway', 'garage', 'storage'] as const
 
 export interface OpeningPreset {

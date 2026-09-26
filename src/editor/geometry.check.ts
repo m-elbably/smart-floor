@@ -80,3 +80,4 @@ assert.deepEqual(
   'adjacent'
 )
 console.log('geometry ok')
+assert.ok(g.isConvex(rect(0, 0, 2, 1)) && !g.isConvex(L), 'isConvex')

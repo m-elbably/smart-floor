@@ -122,10 +122,11 @@ export function refitOpenings(data: ProjectData, room: Room, poly: Vec2[], oldPo
 }
 
 /** Snap targets on a floor: room vertices, free wall ends, and room edges + free wall centrelines. */
+/** `skip`: the vertex being dragged (and its two edges), on a room or zone. */
 export function snapTargets(data: ProjectData, floorId: string, skip?: { roomId: string; vertex: number }) {
   const vertices: Vec2[] = []
   const segments: [Vec2, Vec2][] = []
-  for (const r of data.rooms) {
+  for (const r of [...data.rooms, ...data.zones]) {
     if (r.floorId !== floorId) continue
     r.polygon.forEach((p, i) => {
       if (!(skip && skip.roomId === r.id && skip.vertex === i)) vertices.push(p)
@@ -136,5 +137,6 @@ export function snapTargets(data: ProjectData, floorId: string, skip?: { roomId:
     })
   }
   for (const w of data.walls) if (w.floorId === floorId) (vertices.push(w.a, w.b), segments.push([w.a, w.b]))
+  if (data.project.site) (vertices.push(...data.project.site), segments.push(...edges(data.project.site)))
   return { vertices, segments }
 }

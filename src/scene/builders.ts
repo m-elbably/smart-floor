@@ -1,10 +1,10 @@
 // Entity → Object3D. Objects carry userData { id, kind } for picking. Plan (x, y) → world (x, h, -y).
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import type { Floor, Opening, Room, Stair, Vec2 } from '@/types'
+import type { Floor, Opening, Room, Stair, Vec2, Zone } from '@/types'
 import { add, centroid, dot, lerp, norm, scale, sub, wallSegments, dist } from '@/editor/geometry'
 import type { WallView } from '@/editor/model'
-import { FLOOR_MATERIALS } from '@/editor/presets'
+import { FLOOR_MATERIALS, ZONE_KINDS, POOL_DEPTH } from '@/editor/presets'
 import { COLUMN_R, type StairSolution } from '@/editor/stairs'
 import { LAYER } from './viewport'
 
@@ -105,6 +105,10 @@ export function buildWalls(walls: WallView[], openings: PlacedOpening[]) {
       return m
     }
     const wallTag = { id: w.ownerId, kind: w.wallId ? 'wall' : 'room' }
+    if (w.kind === 'fence') {
+      g.add(buildFence(w, L, dir, theta, wallTag))
+      continue
+    }
 
     for (const part of wallSegments(L, mine.map(o => ({ id: o.opening.id, center: o.center, width: o.opening.width })))) {
       const len = part.to - part.from
@@ -265,4 +269,69 @@ export function buildStair(stair: Stair, sol: StairSolution, totalRise: number) 
   tag.layers.set(LAYER.plan)
   g.add(tag)
   return g
+}
+
+// ---------- fences, zones, site ----------
+
+/** Posts every ~2 m plus two rails; one invisible pick box along the whole run. */
+function buildFence(w: WallView, L: number, dir: Vec2, theta: number, tag: object) {
+  const g = new THREE.Group()
+  const wood = std('#8b6b4a')
+  const n = Math.max(1, Math.ceil(L / 2))
+  const put = (m: THREE.Mesh, t: number, y: number) => {
+    m.position.copy(v3(add(w.a, scale(dir, t)), y))
+    m.rotation.y = theta
+    m.castShadow = true
+    m.userData = tag
+    g.add(m)
+    return m
+  }
+  for (let i = 0; i <= n; i++) put(box(0.08, w.height, 0.08, wood), (i / n) * L, w.height / 2)
+  for (const y of [0.3, 0.85]) put(box(L, 0.07, w.thickness, wood), L / 2, w.height * y)
+  put(box(L, w.height, Math.max(0.2, w.thickness), pickMat()), L / 2, w.height / 2).layers.set(LAYER.pick)
+  return g
+}
+
+/** Zones sit just under room floors (so a house on the lawn covers it); `holes` are pools cut out of lawns. */
+export function buildZone(z: Zone, label: { title: string; sub: string }, holes: Vec2[][] = []) {
+  const g = new THREE.Group()
+  g.userData = { id: z.id, kind: 'zone' }
+  const color = ZONE_KINDS[z.kind]?.color ?? '#7fb069'
+  if (z.kind === 'pool') {
+    const depth = Number(z.props.depth ?? POOL_DEPTH)
+    // Basin: an extruded prism seen from inside (BackSide), plus a water surface just below the rim.
+    const basin = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(shape(z.polygon), { depth, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, -depth, 0),
+      mat('poolBasin', () => new THREE.MeshStandardMaterial({ color: '#d9eef5', side: THREE.BackSide }))
+    )
+    basin.receiveShadow = true
+    const water = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape(z.polygon)).rotateX(-Math.PI / 2),
+      mat('water', () => new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.7, roughness: 0.05 }))
+    )
+    water.position.y = -0.12
+    const rim = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(z.polygon.map(p => v3(p, -0.006))), mat('rim', () => new THREE.LineBasicMaterial({ color: '#e7e5e4' })))
+    g.add(basin, water, rim)
+  } else {
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(shape(z.polygon, holes)).rotateX(-Math.PI / 2), std(color))
+    m.position.y = z.kind === 'grass' ? -0.012 : -0.008 // paving shows over lawn
+    m.receiveShadow = true
+    g.add(m)
+  }
+  const el = document.createElement('div')
+  el.className = 'room-label'
+  el.innerHTML = '<b></b><span></span>'
+  el.children[0].textContent = label.title
+  el.children[1].textContent = label.sub
+  const tag = new CSS2DObject(el)
+  tag.position.copy(v3(centroid(z.polygon), 0.05))
+  g.add(tag)
+  return g
+}
+
+export function buildSite(poly: Vec2[]) {
+  const pts = [...poly, poly[0]].map(p => v3(p, 0.015))
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat('site', () => new THREE.LineDashedMaterial({ color: '#f59e0b', dashSize: 0.5, gapSize: 0.3 })))
+  line.computeLineDistances()
+  return line
 }

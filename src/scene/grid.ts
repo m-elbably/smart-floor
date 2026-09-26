@@ -42,7 +42,7 @@ export function createGrid() {
   return {
     object,
     update(elevation: number) {
-      object.position.y = elevation - 0.005 // just under room floors, so rooms hide it
+      object.position.y = elevation - 0.02 // under garden zones and room floors, so they hide it
     },
     setTheme(dark: boolean) {
       COLORS[dark ? 'dark' : 'light'].forEach((c, i) => uniforms.colors.value[i].setHex(c))

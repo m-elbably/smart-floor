@@ -204,12 +204,24 @@ A milestone is done only when its **Verify** box is checked.
     - The plan symbol (tread lines, walk-line arrow, "UP") is 2D-only.
     - The void clips each convex footprint piece to the room (Sutherland–Hodgman) and pulls it 2 mm inward.
 
-## M8 — Garden & outdoor `[FR-50..52]`
-- [ ] Zone tool: polygon, reusing the polygon tool logic. Kinds: grass, patio, path, driveway, pool. `[FR-50]`
-- [ ] Zone builders. Pool: recessed with a water material and a depth property.
-- [ ] Fence type for the free wall tool (thin posts plus rails). `[FR-51]`
-- [ ] Optional site boundary polygon stored in `projects.site_json`, with its area shown in the summary. `[FR-52]`
-- [ ] **Verify:** draw a garden with grass, a patio, a pool and a fence around it. It renders in 2D and 3D.
+## M8 — Garden & outdoor `[FR-50..52]` ✅
+- [x] Zone tool: polygon, reusing the polygon tool logic. Kinds: grass, patio, path, driveway, pool. `[FR-50]`
+- [x] Zone builders. Pool: recessed with a water material and a depth property.
+- [x] Fence type for the free wall tool (thin posts plus rails). `[FR-51]`
+- [x] Optional site boundary polygon stored in `projects.site_json`, with its area shown in the summary. `[FR-52]`
+- [ ] **Verify (user, real app):** draw a garden with grass, a patio, a pool and a fence around it. It renders in 2D and 3D.
+  - Headless check done:
+    - The site outline reads 288 m² for 18 × 16 m.
+    - Lawn, patio and pool render in 2D and 3D, with a fence of four runs of posts and rails.
+    - A pool corner drag plus undo works.
+  - As built:
+    - `polygonTool()` factory: the room, zone and site tools share the polygon logic.
+    - Zones sit just under room floors (grass −12 mm, paving −8 mm, grid −20 mm), so a house on the lawn covers it.
+    - Convex pools cut a hole in the zones around them; a concave pool doesn't.
+    - The site boundary is an undoable project-level command (`updateProjectCmd`), with a "Clear site boundary" action.
+    - Its area shows in the status bar until the M11 summary panel exists.
+    - Zones have the same corner, edge and move editing as rooms.
+    - Snapped points are rounded to 1 µm.
 
 ## M9 — Furniture & catalog `[FR-60..66, FR-51]`
 - [ ] `catalog/manifest.ts`: `CatalogItem` type (design §8).

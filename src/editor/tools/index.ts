@@ -162,6 +162,8 @@ function outline(id: string, color: string, width: number): Shape[] {
   }
   const s = data.stairs.find(s => s.id === id)
   if (s) return stairShapes(s, color, width)
+  const z = data.zones.find(z => z.id === id)
+  if (z) return [{ kind: 'line', points: z.polygon, closed: true, color, width }]
   const w = data.walls.find(w => w.id === id)
   if (w) {
     const d = norm(sub(w.b, w.a))
@@ -174,6 +176,8 @@ function outline(id: string, color: string, width: number): Shape[] {
 export function refresh() {
   if (!overlay || !store.data) return
   const shapes: Shape[] = []
+  const site = store.data.project.site
+  if (site && store.tool === 'site') shapes.push({ kind: 'line', points: site, closed: true, color: '#f59e0b', width: 1, dashed: true })
   if (store.hover && !store.selection.includes(store.hover) && store.tool === 'select') shapes.push(...outline(store.hover, COLORS.hover, 1.5))
   for (const id of store.selection) shapes.push(...outline(id, COLORS.primary, 2.5))
   shapes.push(...(current()?.preview?.() ?? []))

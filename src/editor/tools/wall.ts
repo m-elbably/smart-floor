@@ -8,6 +8,7 @@ import { format } from '../units'
 import { registerTool } from './index'
 import { createEntry } from './entry'
 
+const fence = () => store.toolOptions.wall === 'fence'
 let start: Vec2 | null = null
 let cur: Vec2 | null = null
 const entry = createEntry()
@@ -19,11 +20,12 @@ function place(end: Vec2) {
     floorId: activeFloor.value!.id,
     a: start,
     b: end,
-    thickness: store.settings.wallInterior,
-    height: activeFloor.value!.height,
-    kind: 'wall'
+    // Fences: thin, waist-high posts and rails.
+    thickness: fence() ? 0.05 : store.settings.wallInterior,
+    height: fence() ? 1.2 : activeFloor.value!.height,
+    kind: fence() ? 'fence' : 'wall'
   }
-  execute(addEntity('walls', wall))
+  execute(addEntity('walls', wall, fence() ? 'Add fence' : 'Add wall'))
   start = end
 }
 
@@ -64,5 +66,5 @@ registerTool({
       { kind: 'label', at: lerp(start, cur, 0.5), text: entry.text ? `${entry.text} ↵` : format(dist(start, cur), store.settings.units) }
     ]
   },
-  hint: () => (start ? 'Click the next point · type a length + Enter · double-click or Esc ends' : 'Click to start a free-standing wall')
+  hint: () => (start ? 'Click the next point · type a length + Enter · double-click or Esc ends' : `Click to start a ${fence() ? 'fence' : 'free-standing wall'}`)
 })

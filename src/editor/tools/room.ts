@@ -1,7 +1,7 @@
 // Room drawing tools: rectangle (drag or click-click), polygon (click vertices), template stamp.
 import type { Room, Vec2 } from '@/types'
 import { COLORS, type Shape } from '@/scene/overlay'
-import { store, activeFloor, notify } from '../store'
+import { store, activeFloor, notify, type ToolId } from '../store'
 import { execute, addEntity } from '../commands'
 import { area, centroid, dist, ensureCCW, isSimple, lerp, EPS, norm, sub, add, scale } from '../geometry'
 import { format, formatArea } from '../units'
@@ -107,8 +107,16 @@ const edgeLabels = (poly: Vec2[], closed: boolean): Shape[] =>
   })
 }
 
-// ---------- polygon ----------
-{
+// ---------- polygon (rooms, garden zones, site boundary) ----------
+export interface PolygonToolSpec {
+  id: ToolId
+  /** Called with a simple polygon (not yet oriented). */
+  done(poly: Vec2[]): void
+  color?: string
+  first?: string // hint before the first click
+}
+
+export function polygonTool(spec: PolygonToolSpec) {
   let pts: Vec2[] = []
   let cur: Vec2 | null = null
   const entry = createEntry()
@@ -117,9 +125,9 @@ const edgeLabels = (poly: Vec2[], closed: boolean): Shape[] =>
   function close() {
     const poly = pts.filter((p, i) => i === 0 || dist(p, pts[i - 1]) > EPS)
     if (poly.length > 2 && dist(poly[0], poly[poly.length - 1]) < EPS) poly.pop()
-    if (poly.length < 3) return notify('A room needs at least 3 corners')
-    if (!isSimple(poly)) return notify('The room outline crosses itself')
-    addRoom(poly)
+    if (poly.length < 3) return notify('An outline needs at least 3 corners')
+    if (!isSimple(poly)) return notify('The outline crosses itself')
+    spec.done(poly)
     cancel()
   }
   function cancel() {
@@ -128,8 +136,9 @@ const edgeLabels = (poly: Vec2[], closed: boolean): Shape[] =>
     entry.clear()
   }
 
+  const color = spec.color ?? COLORS.draw
   registerTool({
-    id: 'polygon',
+    id: spec.id,
     snapFrom: () => pts.at(-1) ?? null,
     move(e) {
       cur = e.p
@@ -162,22 +171,26 @@ const edgeLabels = (poly: Vec2[], closed: boolean): Shape[] =>
       if (!pts.length) return []
       const chain = cur ? [...pts, cur] : pts
       const shapes: Shape[] = [
-        { kind: 'line', points: chain, color: COLORS.draw },
-        { kind: 'dots', points: pts, color: COLORS.draw, size: 7 },
+        { kind: 'line', points: chain, color },
+        { kind: 'dots', points: pts, color, size: 7 },
         ...edgeLabels(chain, false)
       ]
       if (chain.length > 2) {
-        shapes.push({ kind: 'fill', points: chain, color: COLORS.draw })
-        shapes.push({ kind: 'line', points: [chain[chain.length - 1], chain[0]], color: COLORS.draw, width: 1, dashed: true })
+        shapes.push({ kind: 'fill', points: chain, color })
+        shapes.push({ kind: 'line', points: [chain[chain.length - 1], chain[0]], color, width: 1, dashed: true })
         shapes.push({ kind: 'label', at: centroid(chain), text: formatArea(area(chain), units()) })
       }
       if (entry.text && cur) shapes.push({ kind: 'label', at: cur, text: `${entry.text} ↵` })
       return shapes
     },
     hint: () =>
-      pts.length ? 'Click to add corners · click the first corner or Enter to finish · Backspace undoes a corner · type a length + Enter' : 'Click to place the first corner'
+      pts.length
+        ? 'Click to add corners · click the first corner or Enter to finish · Backspace undoes a corner · type a length + Enter'
+        : (spec.first ?? 'Click to place the first corner')
   })
 }
+
+polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
 
 // ---------- template stamp ----------
 {

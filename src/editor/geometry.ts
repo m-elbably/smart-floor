@@ -38,6 +38,19 @@ export function centroid(poly: Vec2[]): Vec2 {
   return [cx / (6 * A), cy / (6 * A)]
 }
 
+/** Every turn goes the same way (collinear vertices allowed). */
+export function isConvex(poly: Vec2[]) {
+  const n = poly.length
+  let sign = 0
+  for (let i = 0; i < n; i++) {
+    const c = cross(sub(poly[(i + 1) % n], poly[i]), sub(poly[(i + 2) % n], poly[(i + 1) % n]))
+    if (Math.abs(c) < 1e-12) continue
+    if (sign && Math.sign(c) !== sign) return false
+    sign = Math.sign(c)
+  }
+  return true
+}
+
 export const ensureCCW = (poly: Vec2[]): Vec2[] => (signedArea(poly) < 0 ? [...poly].reverse() : poly)
 
 function segsIntersect(p1: Vec2, p2: Vec2, p3: Vec2, p4: Vec2) {

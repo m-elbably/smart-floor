@@ -1,6 +1,6 @@
 // One keymap table: drives keyboard handling, the help overlay (?) and the command palette (Ctrl+K).
 import { store } from './store'
-import { undo, redo, history } from './commands'
+import { undo, redo, history, execute, updateProjectCmd } from './commands'
 import { setTool, cancelTool, onToolKey } from './tools'
 import { copy, cut, paste, duplicate, deleteSelection } from './clipboard'
 import { lastEvent } from './tools'
@@ -25,7 +25,9 @@ export const TOOLS: { id: ToolId; label: string; icon: string; key: string }[] =
   { id: 'wall', label: 'Free wall', icon: 'i-lucide-brick-wall', key: 'w' },
   { id: 'door', label: 'Door', icon: 'i-lucide-door-open', key: 'd' },
   { id: 'window', label: 'Window', icon: 'i-lucide-app-window', key: 'n' },
-  { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's' }
+  { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's' },
+  { id: 'zone', label: 'Garden zone', icon: 'i-lucide-trees', key: 'g' },
+  { id: 'site', label: 'Site boundary', icon: 'i-lucide-land-plot', key: 'b' }
 ]
 
 const stepFloor = (dir: 1 | -1) => {
@@ -53,7 +55,7 @@ export const actions: Action[] = [
     keys: ['ctrl+a'],
     run: () => {
       const d = store.data!
-      store.selection = [...d.rooms, ...d.walls, ...d.openings, ...d.stairs].filter(e => e.floorId === store.activeFloorId).map(e => e.id)
+      store.selection = [...d.rooms, ...d.walls, ...d.openings, ...d.stairs, ...d.zones].filter(e => e.floorId === store.activeFloorId).map(e => e.id)
     }
   },
   {
@@ -66,6 +68,14 @@ export const actions: Action[] = [
       if (store.tool !== 'select') setTool('select')
       else store.selection = []
     }
+  },
+  {
+    id: 'clearSite',
+    label: 'Clear site boundary',
+    group: 'Edit',
+    icon: 'i-lucide-land-plot',
+    run: () => execute(updateProjectCmd({ site: null }, 'Clear site boundary')),
+    enabled: () => !!store.data?.project.site
   },
   { id: 'view', label: 'Switch 2D / 3D', group: 'View', icon: 'i-lucide-box', keys: ['tab'], run: () => (store.view = store.view === '2d' ? '3d' : '2d') },
   { id: 'labels', label: 'Toggle room labels', group: 'View', icon: 'i-lucide-tag', keys: ['l'], run: () => (store.showLabels = !store.showLabels) },

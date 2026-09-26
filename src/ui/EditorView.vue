@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { store, activeFloor } from '@/editor/store'
-import { format } from '@/editor/units'
+import { format, formatArea } from '@/editor/units'
+import { area } from '@/editor/geometry'
 import TopBar from './TopBar.vue'
 import FloorsModal from './FloorsModal.vue'
 import Viewport from './Viewport.vue'
@@ -86,9 +87,12 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
       <span v-if="store.cursor && store.snapKind && store.snapKind !== 'grid'" class="flex items-center gap-1 text-warning">
         <UIcon name="i-lucide-magnet" /> {{ snapLabel[store.snapKind] }}
       </span>
-      <span class="truncate">{{ store.hint }}</span>
+      <span class="truncate min-w-0">{{ store.hint }}</span>
       <div class="flex-1" />
-      <span class="flex items-center gap-1" :class="store.saveState === 'error' && 'text-error'">
+      <span v-if="store.data?.project.site" class="flex items-center gap-1 shrink-0">
+        <UIcon name="i-lucide-land-plot" /> Site {{ formatArea(area(store.data.project.site), store.settings.units) }}
+      </span>
+      <span class="flex items-center gap-1 shrink-0" :class="store.saveState === 'error' && 'text-error'">
         <UIcon :name="saveIcon[store.saveState]" :class="store.saveState === 'saving' && 'animate-spin'" />
         {{ saveLabel[store.saveState] }}
       </span>

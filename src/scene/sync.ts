@@ -7,13 +7,17 @@ import { formatArea } from '@/editor/units'
 import { area } from '@/editor/geometry'
 import { floorWalls, hostLine, openingOnWall, stairRise } from '@/editor/model'
 import { solve, toPlan, stairwellHoles } from '@/editor/stairs'
-import { buildRoom, buildWalls, buildStair, dispose, openingFrame, type PlacedOpening } from './builders'
+import { isConvex } from '@/editor/geometry'
+import { buildRoom, buildWalls, buildStair, buildZone, buildSite, dispose, openingFrame, type PlacedOpening } from './builders'
+import { ZONE_KINDS } from '@/editor/presets'
 import type { Viewport } from './viewport'
 
 export function attachScene(vp: Viewport) {
   const rooms = new Map<string, { key: string; obj: THREE.Object3D }>()
   const walls = new Map<string, { key: string; obj: THREE.Object3D }>()
   const stairs = new Map<string, { key: string; obj: THREE.Object3D }>()
+  const zones = new Map<string, { key: string; obj: THREE.Object3D }>()
+  let site: { key: string; obj: THREE.Object3D } | null = null
 
   function rebuild() {
     const data = store.data
@@ -40,6 +44,34 @@ export function attachScene(vp: Viewport) {
       stairs.set(st.id, { key, obj })
     }
     for (const [id, v] of stairs) if (!seen.has(id)) (dispose(v.obj), stairs.delete(id))
+
+    // ponytail: only convex pools cut their lawn/paving; a concave pool would need a real polygon boolean.
+    const pools = (data?.zones ?? []).filter(z => z.kind === 'pool' && isConvex(z.polygon))
+    for (const z of data?.zones ?? []) {
+      seen.add(z.id)
+      const holes = z.kind === 'pool' ? [] : stairwellHoles(z.polygon, pools.filter(p => p.floorId === z.floorId).map(p => p.polygon))
+      const key = JSON.stringify([z, s.units, holes])
+      if (zones.get(z.id)?.key === key) continue
+      const old = zones.get(z.id)
+      if (old) dispose(old.obj)
+      const obj = buildZone(z, { title: ZONE_KINDS[z.kind]?.label ?? z.kind, sub: formatArea(area(z.polygon), s.units) }, holes)
+      vp.floorGroup(z.floorId).add(obj)
+      zones.set(z.id, { key, obj })
+    }
+    for (const [id, v] of zones) if (!seen.has(id)) (dispose(v.obj), zones.delete(id))
+
+    // Site boundary lives on the ground floor.
+    const sitePoly = data?.project.site
+    const ground = data?.floors.find(f => f.level === 0)
+    const siteKey = JSON.stringify([sitePoly, ground?.id])
+    if (site?.key !== siteKey) {
+      if (site) dispose(site.obj)
+      site = null
+      if (sitePoly && ground) {
+        site = { key: siteKey, obj: buildSite(sitePoly) }
+        vp.floorGroup(ground.id).add(site.obj)
+      }
+    }
 
     for (const r of data?.rooms ?? []) {
       const floor = data!.floors.find(f => f.id === r.floorId)
@@ -79,7 +111,7 @@ export function attachScene(vp: Viewport) {
     for (const [id, v] of walls) if (!floorsSeen.has(id)) (dispose(v.obj), walls.delete(id))
 
     // Drop selection/hover that no longer exists (after undo, delete, floor removal).
-    const exists = (id: string) => !!data && (['rooms', 'walls', 'openings', 'stairs'] as const).some(t => data[t].some(e => e.id === id))
+    const exists = (id: string) => !!data && (['rooms', 'walls', 'openings', 'stairs', 'zones'] as const).some(t => data[t].some(e => e.id === id))
     if (store.selection.some(id => !exists(id))) store.selection = store.selection.filter(exists)
     vp.requestRender()
   }
@@ -97,6 +129,7 @@ export function attachScene(vp: Viewport) {
   return () => {
     stop()
     stopLabels()
-    for (const v of [...rooms.values(), ...walls.values(), ...stairs.values()]) dispose(v.obj)
+    for (const v of [...rooms.values(), ...walls.values(), ...stairs.values(), ...zones.values()]) dispose(v.obj)
+    if (site) dispose(site.obj)
   }
 }
