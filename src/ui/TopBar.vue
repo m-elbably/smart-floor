@@ -75,6 +75,9 @@ const addItems = [
         <UButton icon="i-lucide-redo-2" color="neutral" variant="ghost" aria-label="Redo" :disabled="!history.redo" @click="redo" />
       </UTooltip>
     </UFieldGroup>
+    <UTooltip text="Areas & summary" :kbds="['shift', 's']">
+      <UButton icon="i-lucide-sigma" color="neutral" :variant="store.ui.summary ? 'soft' : 'ghost'" aria-label="Areas and summary" @click="store.ui.summary = !store.ui.summary" />
+    </UTooltip>
     <UTooltip text="Command palette" :kbds="['meta', 'k']">
       <UButton icon="i-lucide-search" color="neutral" variant="ghost" aria-label="Command palette" @click="store.ui.palette = true" />
     </UTooltip>

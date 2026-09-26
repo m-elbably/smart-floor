@@ -6,8 +6,9 @@ import type { Viewport, PointerKind } from '@/scene/viewport'
 import { COLORS, type Overlay, type Shape } from '@/scene/overlay'
 import { store, activeFloor, type ToolId } from '../store'
 import { snap, type SnapHit } from '../snapping'
-import { snapTargets, floorWalls, openingOnWall } from '../model'
-import { add, norm, scale, sub } from '../geometry'
+import { snapTargets, floorWalls, openingOnWall, hostLine } from '../model'
+import { format } from '../units'
+import { add, norm, scale, sub, dist, lerp, rightNormal } from '../geometry'
 import type { Opening } from '@/types'
 import { stairShapes } from './shapes'
 import { itemFootprint } from '@/catalog'
@@ -78,7 +79,7 @@ export function lastEvent() {
 export function attachTools(v: Viewport, o: Overlay) {
   vp = v
   overlay = o
-  const stop = watch(() => [store.selection, store.hover, store.data, store.activeFloorId, store.settings.units], refresh, { deep: true })
+  const stop = watch(() => [store.selection, store.hover, store.data, store.activeFloorId, store.settings.units, store.showDims], refresh, { deep: true })
   const stopFloor = watch(
     () => store.activeFloorId,
     () => {
@@ -176,9 +177,31 @@ function outline(id: string, color: string, width: number): Shape[] {
   return []
 }
 
+/** Dimension lines along the outside of every exterior wall on the active floor (FR-72). */
+function wallDims(): Shape[] {
+  const data = store.data!
+  const out: Shape[] = []
+  for (const w of floorWalls(data, activeFloor.value!.id, store.settings)) {
+    if (w.wallId || w.hosts.length !== 1) continue // exterior room walls only
+    const line = hostLine(data, w.hosts[0])
+    if (!line) continue
+    const n = rightNormal(sub(line[1], line[0])) // outward
+    const off = (k: number) => scale(n, w.thickness / 2 + k)
+    const [a, b] = [add(w.a, off(0.45)), add(w.b, off(0.45))]
+    out.push(
+      { kind: 'line', points: [a, b], color: '#71717a', width: 1 },
+      { kind: 'line', points: [add(w.a, off(0.05)), add(w.a, off(0.55))], color: '#71717a', width: 1 },
+      { kind: 'line', points: [add(w.b, off(0.05)), add(w.b, off(0.55))], color: '#71717a', width: 1 },
+      { kind: 'label', at: add(lerp(a, b, 0.5), scale(n, 0.05)), text: format(dist(w.a, w.b), store.settings.units) }
+    )
+  }
+  return out
+}
+
 export function refresh() {
   if (!overlay || !store.data) return
   const shapes: Shape[] = []
+  if (store.showDims && activeFloor.value) shapes.push(...wallDims())
   const site = store.data.project.site
   if (site && store.tool === 'site') shapes.push({ kind: 'line', points: site, closed: true, color: '#f59e0b', width: 1, dashed: true })
   if (store.hover && !store.selection.includes(store.hover) && store.tool === 'select') shapes.push(...outline(store.hover, COLORS.hover, 1.5))

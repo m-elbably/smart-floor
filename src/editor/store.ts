@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   favourites: []
 }
 
-export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair' | 'zone' | 'site' | 'item'
+export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair' | 'zone' | 'site' | 'item' | 'measure'
 
 export const store = reactive({
   projects: [] as Project[],
@@ -64,6 +64,8 @@ export const store = reactive({
   ui: {
     palette: false,
     help: false,
+    summary: false,
+    export: null as null | 'png' | 'glb' | 'pdf',
     confirm: null as null | { title: string; text: string; yes: string; no: string; onYes: () => void; onNo: () => void }
   }
 })

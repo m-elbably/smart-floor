@@ -14,6 +14,7 @@ import '@/editor/tools/opening'
 import '@/editor/tools/stair'
 import '@/editor/tools/zone'
 import '@/editor/tools/item'
+import '@/editor/tools/measure'
 import { handleKey } from '@/editor/shortcuts'
 
 const el = ref<HTMLElement>()

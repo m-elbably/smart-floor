@@ -28,7 +28,8 @@ export const TOOLS: { id: ToolId; label: string; icon: string; key: string }[] =
   { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's' },
   { id: 'zone', label: 'Garden zone', icon: 'i-lucide-trees', key: 'g' },
   { id: 'site', label: 'Site boundary', icon: 'i-lucide-land-plot', key: 'b' },
-  { id: 'item', label: 'Furniture (catalog)', icon: 'i-lucide-armchair', key: 'f' }
+  { id: 'item', label: 'Furniture (catalog)', icon: 'i-lucide-armchair', key: 'f' },
+  { id: 'measure', label: 'Measure', icon: 'i-lucide-ruler', key: 'm' }
 ]
 
 export function openCatalog() {
@@ -89,6 +90,7 @@ export const actions: Action[] = [
   { id: 'walk', label: 'Walk through', group: 'View', icon: 'i-lucide-person-standing', run: () => (store.view = 'walk') },
   { id: 'dims', label: 'Toggle wall dimensions', group: 'View', icon: 'i-lucide-ruler-dimension-line', keys: ['shift+d'], run: () => (store.showDims = !store.showDims) },
   { id: 'labels', label: 'Toggle room labels', group: 'View', icon: 'i-lucide-tag', keys: ['l'], run: () => (store.showLabels = !store.showLabels) },
+  { id: 'summary', label: 'Areas & summary', group: 'View', icon: 'i-lucide-sigma', keys: ['shift+s'], run: () => (store.ui.summary = !store.ui.summary) },
   { id: 'help', label: 'Keyboard shortcuts', group: 'View', icon: 'i-lucide-keyboard', keys: ['?'], run: () => (store.ui.help = true) },
   { id: 'palette', label: 'Command palette', group: 'View', icon: 'i-lucide-search', keys: ['ctrl+k'], run: () => (store.ui.palette = true) },
   { id: 'floorUp', label: 'Floor above', group: 'Floors', icon: 'i-lucide-chevron-up', keys: ['pageup'], run: () => stepFloor(1) },

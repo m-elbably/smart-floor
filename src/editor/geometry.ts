@@ -111,6 +111,8 @@ export interface DerivedWall {
   thickness: number
   exterior: boolean
   hosts: WallHost[]
+  /** Exterior only: how many ends were extended to close a corner (0–2). */
+  extended: number
 }
 
 interface RoomLike {
@@ -165,7 +167,7 @@ export function deriveWalls(rooms: RoomLike[], interior: number, exterior: numbe
       const p = (t: number) => add(g.origin, scale(g.dir, t))
       const hosts = cover.map(c => c.e.host)
       if (cover.length > 1) {
-        out.push({ a: p(lo), b: p(hi), thickness: interior, exterior: false, hosts })
+        out.push({ a: p(lo), b: p(hi), thickness: interior, exterior: false, hosts, extended: 0 })
       } else {
         const e = cover[0].e
         const forward = at(e.b) > at(e.a)
@@ -174,9 +176,13 @@ export function deriveWalls(rooms: RoomLike[], interior: number, exterior: numbe
         const atA = Math.abs(lo - cover[0].lo) < EPS
         const atB = Math.abs(hi - cover[0].hi) < EPS
         const [convexLo, convexHi] = forward ? [e.convexA, e.convexB] : [e.convexB, e.convexA]
-        const lo2 = lo - (atA && convexLo ? exterior : 0)
-        const hi2 = hi + (atB && convexHi ? exterior : 0)
-        out.push({ a: add(p(lo2), shift), b: add(p(hi2), shift), thickness: exterior, exterior: true, hosts })
+        // …unless another edge on this line continues from there (side-by-side rooms): then it's not a corner.
+        const continues = (t: number) => spans.some(s => s.e !== e && s.lo <= t + EPS && s.hi >= t - EPS)
+        const extLo = atA && convexLo && !continues(lo)
+        const extHi = atB && convexHi && !continues(hi)
+        const lo2 = lo - (extLo ? exterior : 0)
+        const hi2 = hi + (extHi ? exterior : 0)
+        out.push({ a: add(p(lo2), shift), b: add(p(hi2), shift), thickness: exterior, exterior: true, hosts, extended: +extLo + +extHi })
       }
       run = null
     }

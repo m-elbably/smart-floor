@@ -45,6 +45,9 @@ near(g.segDistance([-3, 4], [0, 0], [4, 0]), 5)
   near(shared[0].a[0], 4)
   near(shared[0].b[0], 4)
   near(g.dist(shared[0].a, shared[0].b), 3)
+  // collinear neighbours along the bottom: A's piece is not extended into B's (and vice versa)
+  const bottom = w.filter(x => x.exterior && Math.abs(x.a[1] + 0.1) < 1e-9).map(x => g.dist(x.a, x.b)).sort()
+  assert.deepEqual(bottom.map(v => +v.toFixed(6)), [3.2, 4.2])
 }
 
 // partial overlap → shared piece plus exterior pieces on each side

@@ -292,15 +292,21 @@ A milestone is done only when its **Verify** box is checked.
     - Mouse look needs a click (pointer lock). Esc / unlock leaves walk mode.
     - Windows and stair blocks are not collision objects; walls, fences and free walls are.
 
-## M11 — Measurements & summary `[FR-72..74]`
-- [ ] Wall dimension overlay (outer lengths), toggled in the view menu. `[FR-72]`
-- [ ] Measure tool: click-click with a live label, Shift for 15° lock. `[FR-73]`
-- [ ] `ui/SummaryPanel.vue`:
+## M11 — Measurements & summary `[FR-72..74]` ✅
+- [x] Wall dimension overlay (outer lengths), toggled in the view menu. `[FR-72]`
+- [x] Measure tool: click-click with a live label, Shift for 15° lock. `[FR-73]`
+- [x] `ui/SummaryPanel.vue`:
   - per floor: gross area (union outline), net room area, room list
   - project total
   - counts of doors, windows and items
   - `[FR-74]`
-- [ ] **Verify:** the summary numbers match a hand calculation for a two-floor sample project.
+- [x] **Verify:** the summary numbers match a hand calculation for a two-floor sample project.
+  - `summary.check.ts`: ground floor 4×3 + 3×3 m rooms with 25 cm exterior walls gives gross 7.5 × 3.5 = 26.25 m² and net 21 m². Floor 1 (5×4) gives 24.75 / 20 m². The headless UI showed exactly these numbers.
+  - As built:
+    - Gross = rooms + exterior wall footprint − the doubled corner squares. Interior walls sit inside the room outlines, so they don't count.
+    - A fix in `deriveWalls`: exterior walls no longer extend into a collinear neighbour (side-by-side rooms).
+    - Dimensions are drawn per exterior wall piece: the View menu (eye icon) or Shift+D.
+    - The measure tool key is M. The summary is a slideover (Σ button or Shift+S). It replaced the M8 site area in the status bar.
 
 ## M12 — Export `[FR-110..113]`
 - [ ] `export/png.ts`: resolutions 1×, 2× and 4×, save dialog. `[FR-110]`

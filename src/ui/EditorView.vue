@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { store, activeFloor } from '@/editor/store'
-import { format, formatArea } from '@/editor/units'
-import { area } from '@/editor/geometry'
+import { format } from '@/editor/units'
 import TopBar from './TopBar.vue'
 import FloorsModal from './FloorsModal.vue'
 import Viewport from './Viewport.vue'
@@ -13,6 +12,7 @@ import Inspector from './Inspector.vue'
 import CommandPalette from './CommandPalette.vue'
 import HelpModal from './HelpModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
+import SummaryPanel from './SummaryPanel.vue'
 
 const emit = defineEmits<{ settings: [] }>()
 const floorsOpen = ref(false)
@@ -29,11 +29,18 @@ const visibilityItems = [
   { label: 'Ghost floor below', value: 'ghost', icon: 'i-lucide-layers-2' },
   { label: 'All floors', value: 'all', icon: 'i-lucide-layers-3' }
 ]
-const presetItems = [
-  { label: 'Top', icon: 'i-lucide-arrow-down-to-dot', onSelect: () => viewport.value?.preset('top') },
-  { label: 'Front', icon: 'i-lucide-arrow-right-to-line', onSelect: () => viewport.value?.preset('front') },
-  { label: 'Isometric', icon: 'i-lucide-box', onSelect: () => viewport.value?.preset('iso') }
-]
+const presetItems = computed(() => [
+  [
+    { type: 'label' as const, label: 'Camera' },
+    { label: 'Top', icon: 'i-lucide-arrow-down-to-dot', onSelect: () => viewport.value?.preset('top') },
+    { label: 'Front', icon: 'i-lucide-arrow-right-to-line', onSelect: () => viewport.value?.preset('front') },
+    { label: 'Isometric', icon: 'i-lucide-box', onSelect: () => viewport.value?.preset('iso') }
+  ],
+  [
+    { type: 'checkbox' as const, label: 'Room labels', icon: 'i-lucide-tag', checked: store.showLabels, onUpdateChecked: (v: boolean) => (store.showLabels = v), onSelect: (e: Event) => e.preventDefault() },
+    { type: 'checkbox' as const, label: 'Wall dimensions', icon: 'i-lucide-ruler-dimension-line', checked: store.showDims, onUpdateChecked: (v: boolean) => (store.showDims = v), onSelect: (e: Event) => e.preventDefault() }
+  ]
+])
 
 const saveLabel = { saved: 'Saved', dirty: 'Unsaved', saving: 'Saving…', error: 'Save failed' } as const
 const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving: 'i-lucide-loader', error: 'i-lucide-triangle-alert' } as const
@@ -84,7 +91,7 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
           </UFieldGroup>
         </UTooltip>
         <UDropdownMenu :items="presetItems">
-          <UButton icon="i-lucide-video" color="neutral" variant="outline" aria-label="Camera presets" />
+          <UButton icon="i-lucide-eye" color="neutral" variant="outline" aria-label="View options" />
         </UDropdownMenu>
       </div>
     </main>
@@ -103,9 +110,6 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
       </span>
       <span class="truncate min-w-0">{{ store.hint }}</span>
       <div class="flex-1" />
-      <span v-if="store.data?.project.site" class="flex items-center gap-1 shrink-0">
-        <UIcon name="i-lucide-land-plot" /> Site {{ formatArea(area(store.data.project.site), store.settings.units) }}
-      </span>
       <span class="flex items-center gap-1 shrink-0" :class="store.saveState === 'error' && 'text-error'">
         <UIcon :name="saveIcon[store.saveState]" :class="store.saveState === 'saving' && 'animate-spin'" />
         {{ saveLabel[store.saveState] }}
@@ -116,5 +120,6 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
     <CommandPalette />
     <HelpModal />
     <ConfirmModal />
+    <SummaryPanel />
   </div>
 </template>
