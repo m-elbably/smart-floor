@@ -350,13 +350,18 @@ A milestone is done only when its **Verify** box is checked.
     - The outline, pulse and easing items were already in place from M3–M4.
     - A11y: the viewport is an `application` region with a shortcut hint, and catalog cards are keyboard-focusable with a visible ring. Every action is in the Ctrl+K palette.
 
-## M14 — Packaging `[NFR-02..06]`
-- [ ] App icon, window title, and `applicationId`.
-- [ ] `npm run build` → `neu build --release` produces zips for linux_x64, win_x64, mac_x64 and mac_arm64.
-- [ ] Check the bundle size (under 30 MB) and the cold start time (under 2 s). `[NFR-02, NFR-06]`
-- [ ] Smoke test on each OS: create, save, restart, export. Confirm that no network access is needed (offline). `[NFR-03, NFR-04]`
-- [ ] README: dev setup, build, and how to add a catalog item.
-- [ ] **Verify:** release zips run on a clean machine for every target.
+## M14 — Packaging `[NFR-02..06]` ✅ (except the per-OS smoke tests, which need real machines)
+- [x] App icon (`public/icon.png` becomes `/dist/icon.png`, set as `modes.window.icon`), window title "Smart Floor", `applicationId` `com.greenpvl.smartfloor`.
+- [x] `npm run build` runs `neu build --release` and produces one zip (`release/smart-floor-release.zip`, 9.4 MB). It holds linux_x64, linux_arm64, linux_armhf, win_x64, mac_x64, mac_arm64 and mac_universal next to `resources.neu`.
+  - `scripts/check-index.mjs` guards the build: it refuses to build while `neu run`'s dev patch is still in `index.html`. That patch had been committed once by mistake (M7); fixed.
+- [x] Bundle size and cold start `[NFR-02, NFR-06]`:
+  - One platform = 3.9 MB `resources.neu` + about 3 MB binary, so about 7 MB, under the 30 MB target.
+  - The built frontend reaches the home screen in 250 ms cold (about 50 ms warm) in headless Chrome, served from `dist/`.
+  - The native window start time still has to be measured on each OS.
+- [x] Offline `[NFR-03]`: loading and using the built app made zero external requests. The only URLs in the bundle are unused fallbacks: Iconify's API (every icon is bundled and verified) and jsPDF's pdfobject viewer.
+- [ ] Smoke test on each OS: create, save, restart, export. `[NFR-04]` Needs Windows and macOS machines; the Linux release was smoke-tested in M1.
+- [x] README: dev setup, build, shortcuts, and how to add a catalog item (procedural or GLB).
+- [ ] **Verify (user):** release zips run on a clean machine for every target.
 
 ---
 
