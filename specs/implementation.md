@@ -72,19 +72,22 @@ A milestone is done only when its **Verify** box is checked.
   - Imperial and dark mode render correctly.
 - [ ] **Verify (you):** in the real app, create a project with 3 floors, restart the app, and confirm everything is still there.
 
-## M3 — Scene core `[FR-80, FR-81, FR-83, NFR-01]`
-- [ ] `scene/viewport.ts`:
+## M3 — Scene core `[FR-80, FR-81, FR-83, NFR-01]` ✅
+- [x] `scene/viewport.ts`:
   - `WebGLRenderer` (antialias) and `CSS2DRenderer` over it.
   - `ResizeObserver`.
   - `requestRender()` on-demand loop.
-- [ ] Orthographic 2D camera with pan (middle mouse, Space+drag, arrow keys) and zoom toward the cursor. `[FR-80]`
-- [ ] `scene/grid.ts`: adaptive metric grid (major 1 m, minor 0.1 m, fades by zoom), themed colours.
-- [ ] Perspective camera with `OrbitControls` (damping). View presets: top, front, iso. `[FR-81]`
-- [ ] Tweened switching between 2D and 3D (350 ms). Tab and toolbar buttons cycle views. `[FR-83]`
-- [ ] Floor groups at their elevations. Floor visibility modes: active, ghost, all. `[FR-13]`
-- [ ] Mouse → plan coordinates (raycast onto the plane at the floor's elevation). The status bar shows x/y.
-- [ ] Lights: hemisphere + directional. Shadows only in 3D.
-- [ ] **Verify:** smooth pan and zoom in 2D, orbit in 3D, and the Tab transition animates. The window resizes cleanly. The ghost floor below is visible.
+- [x] Orthographic 2D camera with pan (middle mouse, Space+drag, arrow keys) and zoom toward the cursor. `[FR-80]`
+- [x] `scene/grid.ts`: adaptive metric grid (major 1 m, minor 0.1 m, fades by zoom), themed colours.
+  - As built: a shader grid on one 200 m plane (0.1/1/10 m, each fades by on-screen spacing via `fwidth`). Long GL line segments vanished in 3D under SwiftShader.
+- [x] Perspective camera with `OrbitControls` (damping). View presets: top, front, iso. `[FR-81]`
+- [x] Tweened switching between 2D and 3D (350 ms). Tab and toolbar buttons cycle views. `[FR-83]`
+- [x] Floor groups at their elevations. Floor visibility modes: active, ghost, all. `[FR-13]`
+- [x] Mouse → plan coordinates (raycast onto the plane at the floor's elevation). The status bar shows x/y.
+- [x] Lights: hemisphere + directional. Shadows only in 3D.
+- [ ] **Verify (user, in the real app on a GPU):** smooth pan and zoom in 2D, orbit in 3D, and the Tab transition animates. The window resizes cleanly. The ghost floor below is visible.
+  - Headless Chrome (SwiftShader) check done: 2D ghost, zoom keeps the point under the cursor (4.00, 1.20 m before and after), Tab tween, orbit, all-floors mode, back to 2D, resize, dark theme, Front preset.
+  - Notes: plan (x, y) maps to world (x, elevation, −y). The ghost floor is drawn in a first pass with `scene.overrideMaterial`. Floors above the active one are never shown in 2D. Shaders are warmed up with `compileAsync` so the first on-demand frame isn't missing the grid. Keyboard shortcuts act unless focus is in a text field, dialog or menu.
 
 ## M4 — Editor core `[FR-90..96, FR-93]`
 - [ ] `editor/commands.ts`:

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, watchEffect } from 'vue'
 import type { Database } from 'sql.js'
 import { useColorMode } from '@vueuse/core'
 import { openDb, recover, DbOpenError, onSaveState } from './db/sqlite'
@@ -17,6 +17,7 @@ onSaveState(s => (store.saveState = s))
 // Theme setting drives Nuxt UI's color mode [FR-101]
 const mode = useColorMode({ emitAuto: true })
 watch(() => store.settings.theme, t => (mode.store.value = t === 'system' ? 'auto' : t), { immediate: true })
+watchEffect(() => (store.dark = mode.state.value === 'dark'))
 
 function ready(db: Database) {
   loadSettings()

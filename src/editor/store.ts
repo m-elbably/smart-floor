@@ -1,7 +1,8 @@
 // The single reactive app store and its actions. UI reads it; actions persist via repo + scheduleSave.
 // ponytail: project/floor actions write directly; M4 routes entity edits through the undoable command stack.
 import { reactive, computed } from 'vue'
-import type { Floor, Project } from '@/types'
+import type { Floor, Project, Vec2 } from '@/types'
+import type { View, FloorVisibility } from '@/scene/viewport'
 import { useDb, scheduleSave, type SaveState } from '@/db/sqlite'
 import * as repo from '@/db/repo'
 import type { ProjectData } from '@/db/repo'
@@ -33,7 +34,11 @@ export const store = reactive({
   data: null as ProjectData | null,
   activeFloorId: '',
   settings: { ...DEFAULT_SETTINGS } as Settings,
-  saveState: 'saved' as SaveState
+  saveState: 'saved' as SaveState,
+  view: '2d' as View,
+  floorVisibility: 'ghost' as FloorVisibility,
+  cursor: null as Vec2 | null,
+  dark: false
 })
 
 export const activeFloor = computed(() => store.data?.floors.find(f => f.id === store.activeFloorId) ?? null)
