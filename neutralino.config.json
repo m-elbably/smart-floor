@@ -1,0 +1,41 @@
+{
+  "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
+  "applicationId": "com.greenpvl.smartfloor",
+  "version": "0.1.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "/dist/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "tokenSecurity": "one-time",
+  "logging": { "enabled": true, "writeToLogFile": false },
+  "nativeAllowList": ["app.*", "os.*", "filesystem.*", "window.*", "events.*", "debug.log"],
+  "modes": {
+    "window": {
+      "title": "Smart Floor",
+      "width": 1400,
+      "height": 900,
+      "minWidth": 1024,
+      "minHeight": 640,
+      "center": true,
+      "enableInspector": true,
+      "exitProcessOnClose": false
+    }
+  },
+  "cli": {
+    "binaryName": "smart-floor",
+    "resourcesPath": "/dist/",
+    "extensionsPath": "/extensions/",
+    "distributionPath": "/release",
+    "binaryVersion": "6.9.0",
+    "frontendLibrary": {
+      "patchFile": "/index.html",
+      "devUrl": "http://localhost:5188",
+      "projectPath": "/",
+      "devCommand": "npm run vite",
+      "buildCommand": "npx vite build",
+      "waitTimeout": 20000
+    }
+  }
+}
