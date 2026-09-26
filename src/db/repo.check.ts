@@ -51,3 +51,24 @@ assert.equal(repo.get(db, 'rooms', 'r1'), null)
 const copy = new SQL.Database(bytes)
 repo.migrate(copy)
 assert.equal(repo.listProjects(copy).length, 1)
+
+// duplicateProject: deep copy with new ids, references remapped
+{
+  const db2 = new SQL.Database()
+  repo.migrate(db2)
+  repo.insert(db2, 'projects', project)
+  repo.insert(db2, 'floors', floor)
+  repo.insert(db2, 'rooms', room)
+  repo.insert(db2, 'openings', {
+    id: 'o1', floorId: 'f1', host: { roomId: 'r1', edge: 0 }, along: 1, kind: 'door',
+    preset: 'single', width: 0.9, height: 2.1, sill: 0, props: {}
+  })
+  const copy = repo.duplicateProject(db2, 'p1', 'House (copy)')
+  const d = repo.loadProject(db2, copy.id)!
+  assert.equal(d.project.name, 'House (copy)')
+  assert.notEqual(d.floors[0].id, 'f1')
+  assert.equal(d.floors[0].projectId, copy.id)
+  assert.equal(d.rooms[0].floorId, d.floors[0].id)
+  assert.deepEqual(d.openings[0].host, { roomId: d.rooms[0].id, edge: 0 })
+  assert.equal(repo.loadProject(db2, 'p1')!.rooms.length, 1) // original untouched
+}

@@ -143,3 +143,50 @@ export function setSetting(db: Database, key: string, value: unknown) {
     JSON.stringify(value)
   ])
 }
+
+/** Run `fn` in a transaction; rolls back on error. */
+export function tx<T>(db: Database, fn: () => T): T {
+  db.exec('BEGIN')
+  try {
+    const out = fn()
+    db.exec('COMMIT')
+    return out
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+}
+
+/**
+ * Deep-copy project data with fresh ids. Every string equal to an old id (foreign keys, opening hosts, …)
+ * is rewritten, so new references never need listing here. Used by duplicate, and later by import/copy-floor.
+ */
+export function remapIds(data: Omit<ProjectData, 'project'>, newId: () => string = () => crypto.randomUUID()) {
+  const map = new Map<string, string>()
+  for (const t of ['floors', ...FLOOR_TABLES] as const) for (const row of data[t]) map.set(row.id, newId())
+  return {
+    map,
+    data: JSON.parse(JSON.stringify(data), (_k, v) => (typeof v === 'string' && map.has(v) ? map.get(v) : v)) as Omit<
+      ProjectData,
+      'project'
+    >
+  }
+}
+
+export function insertProjectData(db: Database, data: ProjectData) {
+  insert(db, 'projects', data.project)
+  for (const f of data.floors) insert(db, 'floors', f)
+  for (const t of FLOOR_TABLES) for (const row of data[t]) insert(db, t, row as never)
+}
+
+export function duplicateProject(db: Database, id: string, name: string): Project {
+  const src = loadProject(db, id)
+  if (!src) throw new Error(`No project ${id}`)
+  const { project, ...rest } = src
+  const now = Date.now()
+  const copy: Project = { ...project, id: crypto.randomUUID(), name, createdAt: now, updatedAt: now }
+  const { data } = remapIds(rest)
+  for (const f of data.floors) f.projectId = copy.id
+  tx(db, () => insertProjectData(db, { project: copy, ...data }))
+  return copy
+}

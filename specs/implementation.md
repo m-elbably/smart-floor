@@ -48,17 +48,29 @@ A milestone is done only when its **Verify** box is checked.
   - A truncated file shows the recovery modal.
 - [ ] **Verify (you):** truncate the file, click "Restore backup 1", and confirm the app loads with the backup's data.
 
-## M2 — Projects, floors & settings UI `[FR-01..04, FR-10..12, FR-100..102]`
-- [ ] Simple view switching in `App.vue` (Home / Editor) with a ref. No router.
-- [ ] `ui/HomeView.vue`: project cards, search, sorted by `updated_at`, empty state. `[FR-02]`
-- [ ] New project modal (name required). It creates the project and a "Ground Floor". `[FR-01]`
-- [ ] Card menu: rename, duplicate (deep copy with new ids), delete (confirm). `[FR-03]`
-- [ ] `editor/store.ts`: `openProject(id)` and `closeProject()`.
-- [ ] `ui/TopBar.vue`: editable project name, floor `USelectMenu`, and add floor above/below. `[FR-10, FR-12]`
-- [ ] Floor dialog: rename, height, slab, delete, reorder. Elevations are recalculated. `[FR-11]`
-- [ ] Settings modal: units, theme, grid, default heights and thicknesses. Stored in the `settings` table. `[FR-100, FR-101, FR-102]`
-- [ ] `editor/units.ts` with `format` and `parse`. `units.check.ts`. `[FR-100]`
-- [ ] **Verify:** create a project, add 3 floors, rename them, reorder them, and delete one. Restart the app: everything is still there. Switch to imperial: labels change.
+## M2 — Projects, floors & settings UI `[FR-01..04, FR-10..12, FR-100..102]` ✅
+- [x] Simple view switching in `App.vue` (Home when `store.data` is null, otherwise Editor). No router.
+- [x] `ui/HomeView.vue`: project cards, search, sorted by `updatedAt`, empty state (`UEmpty`), relative "Edited …" time. `[FR-02]`
+- [x] New project modal (name required, description). It creates the project and a "Ground Floor" and opens it. `[FR-01]`
+- [x] Card menu: open, rename, duplicate (`repo.duplicateProject`: deep copy through `remapIds`, which rewrites every reference, including opening hosts), delete (confirm modal). `[FR-03]`
+- [x] `editor/store.ts`: reactive store + actions: `openProject`, `closeProject`, project CRUD, `addFloor`, `updateFloor`, `moveFloor`, `removeFloor`, `saveSettings`, `touch`.
+- [x] `editor/floors.ts`: pure floor-stack logic. `elev(n) = elev(n-1) + height(n-1) + slab(n)`, with the ground floor at 0 and the number of basements kept when reordering. `floors.check.ts`.
+- [x] `ui/TopBar.vue`: back button, editable project name, floor `USelect` (top floor first), ▲▼ buttons, PageUp/PageDown, add floor above/basement menu. `[FR-10, FR-12]`
+- [x] `ui/FloorsModal.vue`: rename, height, slab, live elevation, move up/down, two-step delete. `[FR-11]`
+- [x] `ui/SettingsModal.vue`: units, theme (drives the `@vueuse` color mode), grid, default floor height, slab and wall thicknesses. Stored as one JSON `settings` row. `[FR-100, FR-101, FR-102]`
+- [x] `editor/units.ts`: `format`, `formatArea`, `parse` (only ft+in may be combined, so "2.80 m300cm" is rejected). `units.check.ts`. `[FR-100]`
+- [x] `ui/LengthInput.vue`: length field that shows the user's units and accepts "350cm", `11'3"` and so on. Invalid input is highlighted and not applied.
+- [x] Icons are bundled offline (`@iconify-json/lucide`, added via `addCollection`); Nuxt UI would otherwise fetch icons from the network. `[NFR-03]`
+- [x] Floor and project edits write directly for now. M4 moves entity edits onto the undo stack.
+- [x] **Verify (done by Claude, headless Chrome against the dev server):**
+  - Create a project, add a floor above and a basement: elevations are −3.00 / 0.00 / 3.00 m.
+  - Edit heights and slabs: elevations recalculate.
+  - Invalid input is rejected.
+  - Two-step floor delete works.
+  - PageUp changes floor.
+  - Duplicating a project copies all 3 floors.
+  - Imperial and dark mode render correctly.
+- [ ] **Verify (you):** in the real app, create a project with 3 floors, restart the app, and confirm everything is still there.
 
 ## M3 — Scene core `[FR-80, FR-81, FR-83, NFR-01]`
 - [ ] `scene/viewport.ts`:

@@ -11,8 +11,11 @@
     "check": "vue-tsc --noEmit && node scripts/check.mjs"
   },
   "dependencies": {
+    "@iconify-json/lucide": "^1.2.137",
+    "@iconify/vue": "^5.0.3",
     "@neutralinojs/lib": "^6.9.0",
     "@nuxt/ui": "^4.11.2",
+    "@vueuse/core": "^14.4.0",
     "jspdf": "^4.2.1",
     "sql.js": "^1.14.2",
     "tailwindcss": "^4.3.3",

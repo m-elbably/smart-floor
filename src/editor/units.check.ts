@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict'
+import { format, formatArea, parse } from './units'
+
+assert.equal(format(3.456, 'metric'), '3.46 m')
+assert.equal(format(0.45, 'metric'), '45 cm')
+assert.equal(format(0, 'metric'), '0.00 m')
+assert.equal(format(3.4291, 'imperial'), `11' 3"`)
+assert.equal(format(0.3048 * 11 + 0.0254 * 3.75, 'imperial'), `11' 3¾"`)
+assert.equal(format(0.1016, 'imperial'), '4"')
+assert.equal(formatArea(12, 'metric'), '12.00 m²')
+
+const near = (a: number | null, b: number) => assert.ok(a !== null && Math.abs(a - b) < 1e-9, `${a} != ${b}`)
+near(parse('3.5'), 3.5)
+near(parse('3,5'), 3.5)
+near(parse('350cm'), 3.5)
+near(parse('3500 mm'), 3.5)
+near(parse('3.5m'), 3.5)
+near(parse(`11'3"`), 0.3048 * 11 + 0.0254 * 3)
+near(parse('11ft 3in'), 0.3048 * 11 + 0.0254 * 3)
+near(parse('10', 'imperial'), 3.048)
+assert.equal(parse(''), null)
+assert.equal(parse('abc'), null)
+assert.equal(parse('3m abc'), null)
+assert.equal(parse('2.80 m300cm'), null)
+assert.equal(parse(`3" 11'`), null)
