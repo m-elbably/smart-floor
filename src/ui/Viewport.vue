@@ -5,6 +5,7 @@ import { createViewport, type Viewport } from '@/scene/viewport'
 import { createOverlay } from '@/scene/overlay'
 import { attachScene } from '@/scene/sync'
 import { attachGizmo } from '@/scene/gizmo'
+import { attachWalk } from '@/scene/walk'
 import { attachTools, onPointer } from '@/editor/tools'
 import '@/editor/tools/select'
 import '@/editor/tools/room'
@@ -26,6 +27,11 @@ const ARROWS: Record<string, [number, number]> = { ArrowLeft: [60, 0], ArrowRigh
 
 function onKeyDown(e: KeyboardEvent) {
   if (!vp || !free(e)) return
+  if (store.view === 'walk') {
+    // walk.ts owns movement keys; only view switching and Esc get through
+    if (e.key === 'Tab' || e.key === 'Escape') (e.preventDefault(), handleKey(e))
+    return
+  }
   if (e.code === 'Space' && !(e.target as HTMLElement).closest('button, a')) {
     e.preventDefault()
     vp.setSpace(true)
@@ -40,9 +46,10 @@ const onKeyUp = (e: KeyboardEvent) => e.code === 'Space' && vp?.setSpace(false)
 onMounted(() => {
   const v = (vp = createViewport(el.value!, onPointer))
   const overlay = createOverlay(v)
-  detach = [attachScene(v), attachTools(v, overlay), attachGizmo(v)]
+  detach = [attachScene(v), attachTools(v, overlay), attachGizmo(v), attachWalk(v)]
   if (import.meta.env.DEV) Object.assign((window as any).sf ?? {}, { vp: v })
-  watchEffect(() => v.setFloors(store.data?.floors ?? [], store.activeFloorId, store.floorVisibility))
+  // Walking shows the whole building (the floor above is your ceiling, the stairwell shows the one below).
+  watchEffect(() => v.setFloors(store.data?.floors ?? [], store.activeFloorId, store.view === 'walk' ? 'all' : store.floorVisibility))
   watch(() => store.view, view => v.setView(view), { immediate: true })
   watch(() => store.dark, d => v.setTheme(d), { immediate: true })
   window.addEventListener('keydown', onKeyDown)

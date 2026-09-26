@@ -6,7 +6,7 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import { createGrid } from './grid'
 import type { Vec2 } from '@/types'
 
-export type View = '2d' | '3d'
+export type View = '2d' | '3d' | 'walk'
 export type FloorVisibility = 'active' | 'ghost' | 'all'
 export type Preset = 'top' | 'front' | 'iso'
 type Vis = 'normal' | 'ghost' | 'hidden'
@@ -70,6 +70,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
 
   const s = { view: '2d' as View, center: [0, 0] as Vec2, ppm: 50, elevation: 0, w: 1, h: 1, space: false }
   const camera = () => (s.view === '2d' ? ortho : persp)
+  const walking = () => s.view === 'walk'
   const distFor = (ppm: number) => s.h / (2 * ppm * halfTan)
   const ppmFor = (dist: number) => s.h / (2 * dist * halfTan)
 
@@ -105,6 +106,27 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
   function setView(view: View) {
     finishTween()
     if (view === s.view) return
+    if (s.view === 'walk') {
+      // leave first person: orbit around a point a few metres ahead, at floor level
+      persp.layers.disable(LAYER.ceiling)
+      const ahead = persp.getWorldDirection(new THREE.Vector3()).setY(0).normalize().multiplyScalar(4)
+      orbit.target.copy(persp.position).add(ahead).setY(s.elevation)
+      persp.position.y = Math.max(persp.position.y, s.elevation + 4)
+      persp.lookAt(orbit.target)
+      s.view = '3d'
+      orbit.enabled = view === '3d'
+      refloor()
+      syncShadows()
+      if (view === '3d') return requestRender()
+    }
+    if (view === 'walk') {
+      s.view = 'walk'
+      orbit.enabled = false
+      persp.layers.enable(LAYER.ceiling)
+      refloor()
+      syncShadows()
+      return requestRender()
+    }
     if (view === '3d') {
       const target = toWorld(s.center, s.elevation)
       const d = distFor(s.ppm)
@@ -159,7 +181,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       canvas.style.cursor = 'grabbing'
       return
     }
-    if (e.button !== 0 || tween) return
+    if (e.button !== 0 || tween || walking()) return
     if (s.view === '3d' && guard?.()) {
       gesture = true // a gizmo handle has the pointer: no tool, no orbit
       orbit.enabled = false
@@ -175,7 +197,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     if (panning) {
       pan(e.clientX - panning.x, e.clientY - panning.y)
       panning = { x: e.clientX, y: e.clientY }
-    } else onPointer('move', e, planAt(e.offsetX, e.offsetY))
+    } else if (!walking()) onPointer('move', e, planAt(e.offsetX, e.offsetY))
   }
   function onPointerUp(e: PointerEvent) {
     if (panning) {
@@ -183,7 +205,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       canvas.style.cursor = s.space ? 'grab' : ''
       return
     }
-    if (e.button === 0 && !(s.view === '3d' && guard?.())) onPointer('up', e, planAt(e.offsetX, e.offsetY))
+    if (e.button === 0 && !walking() && !(s.view === '3d' && guard?.())) onPointer('up', e, planAt(e.offsetX, e.offsetY))
     if (gesture) {
       gesture = false
       orbit.enabled = s.view === '3d' && !tween
@@ -291,7 +313,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
   const refloor = () => setFloors(floorState.floors, floorState.activeId, floorState.mode) // floors above hide in 2D
 
   function syncShadows() {
-    sun.castShadow = s.view === '3d'
+    sun.castShadow = s.view !== '2d'
   }
 
   function setTheme(dark: boolean) {
@@ -334,6 +356,8 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     const cam = camera()
     grid.update(s.elevation)
     overlay.position.y = s.elevation + 0.02
+    overlay.visible = !walking()
+    labels.domElement.style.display = walking() ? 'none' : ''
     const all = [...groups.values()]
     const ghosts = all.some(g => g.userData.vis === 'ghost')
     renderer.shadowMap.needsUpdate = true
@@ -343,7 +367,8 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       scene.overrideMaterial = ghostMat
       renderer.render(scene, cam)
       scene.overrideMaterial = null
-      grid.object.visible = overlay.visible = true
+      grid.object.visible = true
+      overlay.visible = !walking()
     }
     for (const g of all) g.visible = g.userData.vis === 'normal'
     renderer.autoClear = !ghosts // draw over the ghost pass

@@ -53,6 +53,8 @@ export const store = reactive({
   tool: 'select' as ToolId,
   toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight', zone: 'grass', wall: 'wall', item: '' },
   catalogOpen: true,
+  walkLocked: false,
+  showDims: false,
   showLabels: true,
   snapKind: null as SnapKind | null,
   /** Short status-bar hint from the active tool. */

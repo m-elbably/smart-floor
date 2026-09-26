@@ -71,6 +71,7 @@ export const actions: Action[] = [
     group: 'Edit',
     keys: ['escape'],
     run: () => {
+      if (store.view === 'walk') return void (store.view = '3d')
       cancelTool()
       if (store.tool !== 'select') setTool('select')
       else store.selection = []
@@ -84,7 +85,9 @@ export const actions: Action[] = [
     run: () => execute(updateProjectCmd({ site: null }, 'Clear site boundary')),
     enabled: () => !!store.data?.project.site
   },
-  { id: 'view', label: 'Switch 2D / 3D', group: 'View', icon: 'i-lucide-box', keys: ['tab'], run: () => (store.view = store.view === '2d' ? '3d' : '2d') },
+  { id: 'view', label: 'Cycle 2D → 3D → Walk', group: 'View', icon: 'i-lucide-box', keys: ['tab'], run: () => (store.view = ({ '2d': '3d', '3d': 'walk', walk: '2d' } as const)[store.view]) },
+  { id: 'walk', label: 'Walk through', group: 'View', icon: 'i-lucide-person-standing', run: () => (store.view = 'walk') },
+  { id: 'dims', label: 'Toggle wall dimensions', group: 'View', icon: 'i-lucide-ruler-dimension-line', keys: ['shift+d'], run: () => (store.showDims = !store.showDims) },
   { id: 'labels', label: 'Toggle room labels', group: 'View', icon: 'i-lucide-tag', keys: ['l'], run: () => (store.showLabels = !store.showLabels) },
   { id: 'help', label: 'Keyboard shortcuts', group: 'View', icon: 'i-lucide-keyboard', keys: ['?'], run: () => (store.ui.help = true) },
   { id: 'palette', label: 'Command palette', group: 'View', icon: 'i-lucide-search', keys: ['ctrl+k'], run: () => (store.ui.palette = true) },

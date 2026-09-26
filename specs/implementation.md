@@ -269,17 +269,28 @@ A milestone is done only when its **Verify** box is checked.
     - The 3D gizmo moves in X/Z only. Rotation uses R / Shift+R or the inspector.
     - `public/models/planter.glb` was generated with GLTFExporter as the GLB sample.
 
-## M10 — Walk mode `[FR-82]`
-- [ ] `scene/walk.ts`:
+## M10 — Walk mode `[FR-82]` ✅
+- [x] `scene/walk.ts`:
   - `PointerLockControls`, eye height 1.65 m
   - WASD, Shift to run
   - Esc exits
   - continuous render loop only while walking
-- [ ] Circle-vs-segment collision with sliding. Door gaps are passable.
-- [ ] Stairs: interpolate height inside the footprint, and switch the active floor at the ends.
-- [ ] Start at the first exterior door, or at the floor centre.
-- [ ] A small overlay shows the controls hint and the current floor name.
-- [ ] **Verify:** walk from the front door into every room, climb the stairs to floor 1 and walk back down. You never pass through a wall.
+- [x] Circle-vs-segment collision with sliding. Door gaps are passable.
+- [x] Stairs: interpolate height inside the footprint, and switch the active floor at the ends.
+- [x] Start at the first exterior door, or at the floor centre.
+- [x] A small overlay shows the controls hint and the current floor name.
+- [ ] **Verify (user, real app):** walk from the front door into every room, climb the stairs to floor 1 and walk back down. You never pass through a wall.
+  - Headless check done:
+    - The walk starts 1.2 m outside the front door, facing it.
+    - You pass through the door gap and climb a 3.00 m straight stair. Floor 1 becomes active past halfway, and eye height = 3.00 + 1.65 m.
+    - You stop at the upstairs wall at exactly r + half-thickness.
+    - Walking back down and out through the door works, and Esc returns to 3D.
+    - `walkmath.check.ts` covers collision, sliding, door gaps, corners and stair heights.
+  - As built:
+    - Tab cycles 2D → 3D → Walk, and the toolbar has a Walk button.
+    - Walking forces "all floors" visibility and shows ceilings (layer 1).
+    - Mouse look needs a click (pointer lock). Esc / unlock leaves walk mode.
+    - Windows and stair blocks are not collision objects; walls, fences and free walls are.
 
 ## M11 — Measurements & summary `[FR-72..74]`
 - [ ] Wall dimension overlay (outer lengths), toggled in the view menu. `[FR-72]`

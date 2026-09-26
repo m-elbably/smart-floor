@@ -49,7 +49,17 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
     <main class="flex-1 relative min-h-0 min-w-0">
       <Viewport ref="viewport" />
       <div class="absolute top-3 left-3">
-        <ToolOptions />
+        <ToolOptions v-if="store.view !== 'walk'" />
+      </div>
+      <!-- Walk mode hint -->
+      <div
+        v-if="store.view === 'walk'"
+        class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full bg-inverted/85 text-inverted text-xs px-4 py-2 shadow"
+      >
+        <UIcon name="i-lucide-person-standing" class="size-4" />
+        <b>{{ activeFloor?.name }}</b>
+        <span v-if="store.walkLocked">WASD move · mouse look · Shift run · Esc exit</span>
+        <span v-else>Click the view to look around · WASD move · Esc exit</span>
       </div>
       <div class="absolute top-3 right-3 flex gap-2">
         <USelect
@@ -59,12 +69,14 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
           class="w-48"
           aria-label="Floor visibility"
         />
-        <UTooltip text="Switch 2D / 3D" :kbds="['Tab']">
+        <UTooltip text="2D plan · 3D · Walk through" :kbds="['Tab']">
           <UFieldGroup>
             <UButton
-              v-for="v in (['2d', '3d'] as const)"
+              v-for="v in (['2d', '3d', 'walk'] as const)"
               :key="v"
-              :label="v.toUpperCase()"
+              :label="v === 'walk' ? undefined : v.toUpperCase()"
+              :icon="v === 'walk' ? 'i-lucide-person-standing' : undefined"
+              :aria-label="v === 'walk' ? 'Walk through' : `${v.toUpperCase()} view`"
               color="neutral"
               :variant="store.view === v ? 'solid' : 'outline'"
               @click="store.view = v"
