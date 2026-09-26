@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { store, activeFloor } from '@/editor/store'
+import { computed, onMounted, ref, watch } from 'vue'
+import { store, activeFloor, saveSettings } from '@/editor/store'
 import { format } from '@/editor/units'
 import TopBar from './TopBar.vue'
 import FloorsModal from './FloorsModal.vue'
@@ -23,6 +23,18 @@ watch(
   () => store.notice.n,
   () => toast.add({ title: store.notice.text, icon: 'i-lucide-info', duration: 2500 })
 )
+// First run: three short tips, one after another, each dismissible.
+onMounted(() => {
+  if (store.settings.tipsSeen) return
+  const tips = [
+    { title: 'Draw a room', description: 'Press R and drag on the grid — or T for a ready-made, furnished room.', icon: 'i-lucide-square' },
+    { title: 'Furnish it', description: 'Press F to open the catalog, then drag a sofa or bed onto the plan. Doors: D, windows: N.', icon: 'i-lucide-armchair' },
+    { title: 'Look around', description: 'Tab switches to 3D; press it again to walk through with WASD. ? lists every shortcut.', icon: 'i-lucide-person-standing' }
+  ]
+  tips.forEach((t, i) => setTimeout(() => toast.add({ ...t, duration: 9000, color: 'primary' }), 600 + i * 3500))
+  saveSettings({ tipsSeen: true })
+})
+
 const snapLabel = { vertex: 'corner', midpoint: 'midpoint', edge: 'wall', align: 'aligned', angle: 'angle', grid: 'grid' } as const
 
 const visibilityItems = [

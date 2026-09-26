@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { store, activeFloor, addFloor, closeProject, updateProject } from '@/editor/store'
+import { store, activeFloor, addFloor, closeProject, updateProject, duplicateFloorAbove } from '@/editor/store'
 import { format } from '@/editor/units'
 import { undo, redo, history } from '@/editor/commands'
 import { notify } from '@/editor/store'
@@ -51,7 +51,8 @@ function stepFloor(dir: 1 | -1) {
 const addItems = [
   [
     { label: 'Add floor above', icon: 'i-lucide-arrow-up-from-line', onSelect: () => addFloor('above') },
-    { label: 'Add basement', icon: 'i-lucide-arrow-down-to-line', onSelect: () => addFloor('below') }
+    { label: 'Add basement', icon: 'i-lucide-arrow-down-to-line', onSelect: () => addFloor('below') },
+    { label: 'Duplicate this floor on top', icon: 'i-lucide-copy-plus', onSelect: () => duplicateFloorAbove(store.activeFloorId) }
   ],
   [{ label: 'Manage floors…', icon: 'i-lucide-layers', onSelect: () => emit('floors') }]
 ]

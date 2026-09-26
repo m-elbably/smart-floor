@@ -22,6 +22,8 @@ export interface Settings {
   /** Catalog: last placed item ids (newest first, max 8) and starred ones. */
   recent: string[]
   favourites: string[]
+  /** First-run tips were shown. */
+  tipsSeen: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,7 +35,8 @@ export const DEFAULT_SETTINGS: Settings = {
   wallInterior: 0.15,
   wallExterior: 0.25,
   recent: [],
-  favourites: []
+  favourites: [],
+  tipsSeen: false
 }
 
 export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair' | 'zone' | 'site' | 'item' | 'measure'
@@ -153,7 +156,30 @@ function bindCommands() {
   commands.bind(store.data ? { db: useDb(), data: store.data, changed: touch } : null)
 }
 
+// ---------- thumbnails [FR-04] ----------
+
+let thumbnailer: (() => Uint8Array | null) | null = null
+let thumbAt = 0
+/** The viewport registers how to take a thumbnail of the open project. */
+export function setThumbnailer(fn: (() => Uint8Array | null) | null) {
+  thumbnailer = fn
+}
+/** Refresh the open project's thumbnail (not an edit: no undo entry, no "edited" time bump). */
+export function captureThumbnail() {
+  const bytes = store.data && thumbnailer?.()
+  if (!bytes || !store.data) return
+  store.data.project.thumbnail = bytes
+  repo.update(useDb(), 'projects', store.data.project.id, { thumbnail: bytes })
+  thumbAt = Date.now()
+  scheduleSave()
+}
+/** While editing: at most once a minute, and only if something changed since the last one. */
+export function maybeCaptureThumbnail() {
+  if (store.data && store.data.project.updatedAt > thumbAt && Date.now() - thumbAt > 60_000) captureThumbnail()
+}
+
 export function closeProject() {
+  captureThumbnail()
   store.data = null
   bindCommands()
   store.selection = []
@@ -209,6 +235,39 @@ export function updateFloor(id: string, patch: Partial<Pick<Floor, 'name' | 'hei
 export function moveFloor(id: string, dir: 1 | -1) {
   if (!store.data) return
   commitFloors(floorOps.moveFloor(store.data.floors.map(f => ({ ...f })), id, dir))
+}
+
+/** Copy a floor's rooms, free walls, doors and windows onto a new floor on top [FR-14]. */
+export function duplicateFloorAbove(id: string) {
+  if (!store.data) return
+  const src = store.data.floors.find(f => f.id === id)
+  if (!src) return
+  addFloor('above')
+  const target = activeFloor.value!
+  updateFloor(target.id, { height: src.height })
+  const ids = new Map<string, string>()
+  const nid = (old: string) => ids.get(old) ?? (ids.set(old, uid()), ids.get(old)!)
+  const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
+  const rooms = store.data.rooms.filter(r => r.floorId === id).map(r => ({ ...clone(r), id: nid(r.id), floorId: target.id }))
+  const walls = store.data.walls.filter(w => w.floorId === id).map(w => ({ ...clone(w), id: nid(w.id), floorId: target.id }))
+  const openings = store.data.openings
+    .filter(o => o.floorId === id)
+    .map(o => ({
+      ...clone(o),
+      id: nid(o.id),
+      floorId: target.id,
+      host: 'roomId' in o.host ? { roomId: nid(o.host.roomId), edge: o.host.edge } : { wallId: nid(o.host.wallId) }
+    }))
+  const db = useDb()
+  repo.tx(db, () => {
+    for (const r of rooms) repo.insert(db, 'rooms', r)
+    for (const w of walls) repo.insert(db, 'walls', w)
+    for (const o of openings) repo.insert(db, 'openings', o)
+  })
+  store.data.rooms.push(...rooms)
+  store.data.walls.push(...walls)
+  store.data.openings.push(...openings)
+  touch()
 }
 
 export function removeFloor(id: string) {

@@ -102,7 +102,7 @@ const dims = (i: CatalogItem) => `${format(i.size[0], store.settings.units)} × 
           draggable="true"
           role="button"
           tabindex="0"
-          class="group relative rounded-md border p-1.5 cursor-grab transition-colors hover:border-primary bg-elevated/40"
+          class="group relative rounded-md border p-1.5 cursor-grab transition-colors hover:border-primary bg-elevated/40 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           :class="store.tool === 'item' && store.toolOptions.item === i.id ? 'border-primary ring-1 ring-primary' : 'border-default'"
           :aria-label="`Place ${i.name}`"
           @click="arm(i)"
@@ -119,7 +119,7 @@ const dims = (i: CatalogItem) => `${format(i.size[0], store.settings.units)} × 
             :color="store.settings.favourites.includes(i.id) ? 'warning' : 'neutral'"
             variant="ghost"
             class="absolute top-1 right-1"
-            :class="!store.settings.favourites.includes(i.id) && 'opacity-0 group-hover:opacity-100'"
+            :class="!store.settings.favourites.includes(i.id) && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100'"
             :aria-label="store.settings.favourites.includes(i.id) ? 'Remove from favourites' : 'Add to favourites'"
             @click.stop="toggleFav(i)"
           />

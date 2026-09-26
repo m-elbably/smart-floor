@@ -6,6 +6,18 @@ import { openFile } from '@/export/files'
 import { importProject } from '@/export/project'
 
 const toast = useToast()
+// Thumbnails are JPEG bytes in SQLite; cache their data URLs per project version.
+const thumbs = new Map<string, string>()
+function thumbUrl(p: Project) {
+  const key = `${p.id}:${p.thumbnail!.length}:${p.updatedAt}`
+  let url = thumbs.get(key)
+  if (!url) {
+    let s = ''
+    for (let i = 0; i < p.thumbnail!.length; i += 0x8000) s += String.fromCharCode(...p.thumbnail!.subarray(i, i + 0x8000))
+    thumbs.set(key, (url = `data:image/jpeg;base64,${btoa(s)}`))
+  }
+  return url
+}
 // Import a shared .smartfloor file [FR-113]
 async function importFile() {
   try {
@@ -98,7 +110,8 @@ function ago(ts: number) {
           :ui="{ body: 'p-0 sm:p-0' }"
           @click="openProject(p.id)"
         >
-          <div class="aspect-video bg-gradient-to-br from-primary/15 to-elevated grid place-items-center rounded-t-lg">
+          <img v-if="p.thumbnail" :src="thumbUrl(p)" alt="" class="aspect-video w-full object-cover rounded-t-lg bg-elevated" />
+          <div v-else class="aspect-video bg-gradient-to-br from-primary/15 to-elevated grid place-items-center rounded-t-lg">
             <UIcon name="i-lucide-house" class="size-12 text-primary/60 transition group-hover:scale-110" />
           </div>
           <div class="flex items-start gap-2 p-4">

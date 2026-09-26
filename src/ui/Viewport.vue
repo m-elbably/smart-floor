@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
-import { store } from '@/editor/store'
+import { store, setThumbnailer, maybeCaptureThumbnail } from '@/editor/store'
 import { createViewport, type Viewport } from '@/scene/viewport'
 import { createOverlay } from '@/scene/overlay'
 import { attachScene } from '@/scene/sync'
@@ -52,6 +52,9 @@ onMounted(() => {
   const v = (vp = createViewport(el.value!, onPointer))
   const overlay = createOverlay(v)
   detach = [attachScene(v), attachTools(v, overlay), attachGizmo(v), attachWalk(v)]
+  setThumbnailer(() => v.thumbnail())
+  const timer = setInterval(maybeCaptureThumbnail, 15_000)
+  detach.push(() => (clearInterval(timer), setThumbnailer(null)))
   if (import.meta.env.DEV) Object.assign((window as any).sf ?? {}, { vp: v })
   // Walking shows the whole building (the floor above is your ceiling, the stairwell shows the one below).
   watchEffect(() => v.setFloors(store.data?.floors ?? [], store.activeFloorId, store.view === 'walk' ? 'all' : store.floorVisibility))
@@ -82,5 +85,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="el" class="relative size-full overflow-hidden" :class="store.tool !== 'select' && 'cursor-crosshair'" />
+  <div
+    ref="el"
+    class="relative size-full overflow-hidden"
+    :class="store.tool !== 'select' && 'cursor-crosshair'"
+    role="application"
+    aria-label="Floor plan editor. Press question mark for keyboard shortcuts, Control K for all actions."
+  />
 </template>

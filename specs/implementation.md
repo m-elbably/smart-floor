@@ -335,14 +335,20 @@ A milestone is done only when its **Verify** box is checked.
     - The PDF falls back to fit-to-page (with a toast) when 1:50 / 1:100 doesn't fit, and prints the real scale.
     - Door and dimension geometry is shared by 3D, overlay and PDF (`model.ts`: `doorLeaves`, `swingArc`, `wallDimensions`).
 
-## M13 — Polish `[FR-04, FR-14, FR-101, NFR-07]`
-- [ ] Thumbnail on close, and at most once a minute while editing. `[FR-04]`
-- [ ] Duplicate floor layout to a new floor above. `[FR-14]`
-- [ ] Dark and light theme applied to the three.js clear colour, grid and label colours. `[FR-101]`
-- [ ] First-run onboarding tips (3 dismissible toasts).
-- [ ] Hover and selection outline polish. Snap pulse animation. Camera tween easing.
-- [ ] A11y pass: visible focus, tooltips with shortcuts, contrast check. `[NFR-07]`
-- [ ] **Verify:** a new user can draw a furnished 2-room house and walk it in under 5 minutes, without reading any docs.
+## M13 — Polish `[FR-04, FR-14, FR-101, NFR-07]` ✅
+- [x] Thumbnail on close, and at most once a minute while editing. `[FR-04]`
+- [x] Duplicate floor layout to a new floor above. `[FR-14]`
+- [x] Dark and light theme applied to the three.js clear colour, grid and label colours. `[FR-101]`
+- [x] First-run onboarding tips (3 dismissible toasts).
+- [x] Hover and selection outline polish. Snap pulse animation. Camera tween easing.
+- [x] A11y pass: visible focus, tooltips with shortcuts, contrast check. `[NFR-07]`
+- [ ] **Verify (user, with a fresh pair of eyes):** a new user can draw a furnished 2-room house and walk it in under 5 minutes, without reading any docs.
+  - Headless check done: tips show on first run, and the flag is saved. Duplicating a floor stacks a copy 3 m up with its rooms and door. Dark theme keeps labels readable. Leaving a project stores a 320×200 JPEG thumbnail (6 KB) that the home card shows.
+  - As built:
+    - Thumbnail: `viewport.thumbnail()` renders an iso view of all floors synchronously and crops it. It is taken on project close, on window close (before the final save), and every 15 s check when the project changed and more than a minute has passed. It doesn't bump "edited" or add an undo step.
+    - "Duplicate this floor on top" copies rooms, free walls, doors and windows. Stairs, zones and furniture are left out on purpose. Like other floor operations, it isn't undoable.
+    - The outline, pulse and easing items were already in place from M3–M4.
+    - A11y: the viewport is an `application` region with a shortcut hint, and catalog cards are keyboard-focusable with a visible ring. Every action is in the Ctrl+K palette.
 
 ## M14 — Packaging `[NFR-02..06]`
 - [ ] App icon, window title, and `applicationId`.

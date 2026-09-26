@@ -411,6 +411,43 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     }
   }
 
+  /**
+   * Iso thumbnail of the whole building (all floors), JPEG bytes, or null for an empty project.
+   * Synchronous: rendered and copied in one task, so the screen never shows it.
+   */
+  function thumbnail(w = 320, h = 200): Uint8Array | null {
+    const box = new THREE.Box3()
+    for (const g of groups.values()) box.expandByObject(g)
+    if (box.isEmpty()) return null
+    const saved = [...groups.values()].map(g => [g, g.visible] as const)
+    const hidden = [overlay, grid.object, ...scene.children.filter(o => o.userData.noExport)].map(o => [o, o.visible] as const)
+    for (const [g] of saved) g.visible = true
+    for (const [o] of hidden) o.visible = false
+    const cam = new THREE.PerspectiveCamera(35, s.w / s.h, 0.1, 2000)
+    cam.layers.enable(LAYER.model)
+    const center = box.getCenter(new THREE.Vector3())
+    const r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1)
+    cam.position.copy(center).add(new THREE.Vector3(1, 0.9, 1.2).normalize().multiplyScalar(r / Math.sin(THREE.MathUtils.degToRad(15))))
+    cam.lookAt(center)
+    renderer.shadowMap.needsUpdate = true
+    renderer.render(scene, cam)
+    const out = document.createElement('canvas')
+    out.width = w
+    out.height = h
+    // crop the middle of the canvas to the thumbnail's aspect
+    const [cw, ch] = [canvas.width, canvas.height]
+    const sw = Math.min(cw, (ch * w) / h)
+    const sh = (sw * h) / w
+    const ctx = out.getContext('2d')!
+    ctx.fillStyle = '#f4f4f5'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(canvas, (cw - sw) / 2, (ch - sh) / 2, sw, sh, 0, 0, w, h)
+    for (const [o, v] of [...saved, ...hidden]) o.visible = v
+    requestRender()
+    const b64 = out.toDataURL('image/jpeg', 0.82).split(',')[1]
+    return Uint8Array.from(atob(b64), c => c.charCodeAt(0))
+  }
+
   /** Binary glTF of the whole building or the active floor: model geometry only (no plan symbols, pick boxes, labels). */
   async function exportGlb(activeOnly: boolean): Promise<Uint8Array> {
     const target = activeOnly ? groups.get(floorState.activeId) : floorsRoot
@@ -472,6 +509,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     setGuard: (fn: (() => boolean) | null) => (guard = fn),
     snapshot,
     exportGlb,
+    thumbnail,
     size: (v: THREE.Vector2) => v.set(s.w, s.h),
     get activeFloorId() {
       return floorState.activeId

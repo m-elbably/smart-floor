@@ -34,3 +34,9 @@ html, body, #app { height: 100%; margin: 0; overflow: hidden; }
 .ov-label.ov-error {
   background: #dc2626;
 }
+
+/* Labels stay readable on dark backgrounds (floors keep their light colours, the ground turns dark). */
+.dark .room-label {
+  color: #fafafa;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
