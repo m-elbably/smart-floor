@@ -468,7 +468,17 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     }
   }
 
+  // When side panels open/close, keep the plan where it is on screen instead of re-centring it
+  // (otherwise selecting a small item shifts it out from under the cursor).
+  let rect = el.getBoundingClientRect()
   const resize = new ResizeObserver(() => {
+    const r = el.getBoundingClientRect()
+    if (s.view === '2d' && rect.width && r.width) {
+      const dx = r.left + r.width / 2 - (rect.left + rect.width / 2)
+      const dy = r.top + r.height / 2 - (rect.top + rect.height / 2)
+      s.center = [s.center[0] + dx / s.ppm, s.center[1] - dy / s.ppm]
+    }
+    rect = r
     s.w = Math.max(1, el.clientWidth)
     s.h = Math.max(1, el.clientHeight)
     renderer.setSize(s.w, s.h)

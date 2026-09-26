@@ -56,7 +56,20 @@ const kitchen = [
   { id: 'green', name: 'Sage / stone top', colors: { wood: '#8fa18a', top: '#d6d3cc', metal: '#9ca3af' } },
   { id: 'navy', name: 'Navy / marble top', colors: { wood: '#34465e', top: '#eeebe5', metal: '#c9ccd1' } }
 ]
-const plants = [{ id: 'green', name: 'Green', colors: { leaf: '#4f7942', pot: '#c2703d', trunk: '#6b4f35' } }]
+const plants = [
+  { id: 'green', name: 'Green', colors: { leaf: '#4f7942', pot: '#c2703d', trunk: '#6b4f35' } },
+  { id: 'white-pot', name: 'Green, white pot', colors: { leaf: '#3f7a45', pot: '#ecebe7', trunk: '#6b4f35' } }
+]
+const trees = [
+  { id: 'summer', name: 'Summer', colors: { leaf: '#4f8a3f', trunk: '#6b4f35' } },
+  { id: 'lush', name: 'Lush', colors: { leaf: '#3a7d44', trunk: '#5a4230' } },
+  { id: 'autumn', name: 'Autumn', colors: { leaf: '#c8702c', trunk: '#5a4230' } },
+  { id: 'blossom', name: 'Blossom', colors: { leaf: '#f0a6c4', trunk: '#5a4230' } }
+]
+const evergreens = [
+  { id: 'spruce', name: 'Spruce', colors: { leaf: '#2f5d3a', trunk: '#4a3626' } },
+  { id: 'blue', name: 'Blue spruce', colors: { leaf: '#4c7a78', trunk: '#4a3626' } }
+]
 
 export const CATALOG: CatalogItem[] = [
   // Living
@@ -90,15 +103,21 @@ export const CATALOG: CatalogItem[] = [
   { id: 'desk', name: 'Desk', category: 'office', tags: ['table', 'work'], size: [1.4, 0.7, 0.75], placement: 'wall', variants: wood, model: { type: 'procedural', builder: 'table', params: { drawer: true } } },
   { id: 'office-chair', name: 'Office chair', category: 'office', tags: ['seat', 'swivel'], size: [0.6, 0.6, 1.1], placement: 'floor', variants: fabric, model: { type: 'procedural', builder: 'officeChair' } },
   // Decor
-  { id: 'plant', name: 'Potted plant', category: 'decor', tags: ['green', 'pot'], size: [0.5, 0.5, 1.1], placement: 'floor', variants: plants, model: { type: 'procedural', builder: 'plant' } },
+  { id: 'plant', name: 'Potted plant', category: 'decor', tags: ['green', 'pot', 'natural'], size: [0.5, 0.5, 1.1], placement: 'floor', variants: plants, model: { type: 'procedural', builder: 'plant' } },
   { id: 'floor-lamp', name: 'Floor lamp', category: 'decor', tags: ['light'], size: [0.4, 0.4, 1.6], placement: 'floor', variants: [{ id: 'linen', name: 'Linen', colors: { shade: '#f1e7d0', metal: '#3f3f46' } }], model: { type: 'procedural', builder: 'lamp' } },
   { id: 'pendant', name: 'Pendant light', category: 'decor', tags: ['light', 'ceiling'], size: [0.45, 0.45, 0.6], placement: 'ceiling', variants: [{ id: 'black', name: 'Black', colors: { shade: '#27272a', metal: '#27272a' } }], model: { type: 'procedural', builder: 'lamp', params: { pendant: true } } },
   { id: 'planter', name: 'Planter (GLB sample)', category: 'decor', tags: ['pot', 'glb'], size: [0.6, 0.6, 0.5], placement: 'floor', model: { type: 'glb', url: './models/planter.glb' } },
-  // Outdoor
-  { id: 'tree-s', name: 'Tree (small)', category: 'outdoor', tags: ['garden', 'green'], size: [1.8, 1.8, 3], placement: 'floor', variants: plants, model: { type: 'procedural', builder: 'tree' } },
-  { id: 'tree-m', name: 'Tree (medium)', category: 'outdoor', tags: ['garden', 'green'], size: [3.5, 3.5, 5.5], placement: 'floor', variants: plants, model: { type: 'procedural', builder: 'tree' } },
-  { id: 'tree-l', name: 'Tree (large)', category: 'outdoor', tags: ['garden', 'green'], size: [6, 6, 9], placement: 'floor', variants: plants, model: { type: 'procedural', builder: 'tree' } },
-  { id: 'bush', name: 'Bush', category: 'outdoor', tags: ['garden', 'shrub', 'green'], size: [1.2, 1.2, 0.9], placement: 'floor', variants: plants, model: { type: 'procedural', builder: 'bush' } },
+  // Outdoor (tag 'natural': placed with a random turn and ±10 % size, so rows don't look cloned)
+  { id: 'tree-s', name: 'Tree (small)', category: 'outdoor', tags: ['garden', 'green', 'natural', 'deciduous'], size: [2.4, 2.4, 3.4], placement: 'floor', variants: trees, model: { type: 'procedural', builder: 'tree', params: { seed: 3 } } },
+  { id: 'tree-m', name: 'Tree (medium)', category: 'outdoor', tags: ['garden', 'green', 'natural', 'deciduous', 'oak'], size: [4, 4, 5.8], placement: 'floor', variants: trees, model: { type: 'procedural', builder: 'tree', params: { seed: 7 } } },
+  { id: 'tree-l', name: 'Tree (large)', category: 'outdoor', tags: ['garden', 'green', 'natural', 'deciduous', 'oak'], size: [6.5, 6.5, 9], placement: 'floor', variants: trees, model: { type: 'procedural', builder: 'tree', params: { seed: 11 } } },
+  { id: 'birch', name: 'Birch', category: 'outdoor', tags: ['garden', 'tree', 'natural', 'deciduous'], size: [2.6, 2.6, 7], placement: 'floor', variants: trees, model: { type: 'procedural', builder: 'tree', params: { seed: 5, birch: true } } },
+  { id: 'conifer-s', name: 'Conifer (small)', category: 'outdoor', tags: ['garden', 'tree', 'natural', 'pine', 'evergreen'], size: [1.6, 1.6, 3.5], placement: 'floor', variants: evergreens, model: { type: 'procedural', builder: 'conifer', params: { seed: 2 } } },
+  { id: 'conifer-l', name: 'Conifer (large)', category: 'outdoor', tags: ['garden', 'tree', 'natural', 'pine', 'evergreen'], size: [3.4, 3.4, 8.5], placement: 'floor', variants: evergreens, model: { type: 'procedural', builder: 'conifer', params: { seed: 9 } } },
+  { id: 'palm', name: 'Palm tree', category: 'outdoor', tags: ['garden', 'tree', 'natural', 'tropical'], size: [4, 4, 6], placement: 'floor', variants: [{ id: 'green', name: 'Green', colors: { leaf: '#4f8a3f', trunk: '#8b6f4e' } }], model: { type: 'procedural', builder: 'palm' } },
+  { id: 'bush', name: 'Bush', category: 'outdoor', tags: ['garden', 'shrub', 'green', 'natural'], size: [1.3, 1.3, 1], placement: 'floor', variants: trees, model: { type: 'procedural', builder: 'bush', params: { seed: 4 } } },
+  { id: 'shrub-flowering', name: 'Flowering shrub', category: 'outdoor', tags: ['garden', 'shrub', 'flowers', 'natural'], size: [1.2, 1.2, 1.1], placement: 'floor', variants: [{ id: 'pink', name: 'Pink', colors: { leaf: '#4f8a3f', flower: '#e25d8e' } }, { id: 'white', name: 'White', colors: { leaf: '#3f7a45', flower: '#f4f4f5' } }, { id: 'yellow', name: 'Yellow', colors: { leaf: '#4f8a3f', flower: '#f2c14e' } }], model: { type: 'procedural', builder: 'bush', params: { seed: 8, flowers: true } } },
+  { id: 'hedge', name: 'Hedge (2 m)', category: 'outdoor', tags: ['garden', 'shrub', 'boundary', 'natural'], size: [2, 0.7, 1.2], placement: 'floor', scale: { min: 0.5, max: 3 }, variants: trees.slice(0, 2), model: { type: 'procedural', builder: 'hedge' } },
   { id: 'flower-bed', name: 'Flower bed', category: 'outdoor', tags: ['garden', 'flowers'], size: [2, 0.8, 0.35], placement: 'floor', scale: { min: 0.5, max: 3 }, variants: plants, model: { type: 'procedural', builder: 'flowerBed' } },
   { id: 'bench', name: 'Garden bench', category: 'outdoor', tags: ['seat', 'garden'], size: [1.5, 0.6, 0.8], placement: 'floor', variants: wood, model: { type: 'procedural', builder: 'bench' } },
   { id: 'parasol', name: 'Parasol', category: 'outdoor', tags: ['umbrella', 'shade'], size: [2.5, 2.5, 2.4], placement: 'floor', variants: [{ id: 'cream', name: 'Cream', colors: { canvas: '#efe6d2', metal: '#71717a' } }, { id: 'teal', name: 'Teal', colors: { canvas: '#2f7f7a', metal: '#71717a' } }], model: { type: 'procedural', builder: 'parasol' } },

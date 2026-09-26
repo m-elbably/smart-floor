@@ -20,6 +20,9 @@ type Drag =
   | { type: 'box'; start: Vec2; end: Vec2; screenBox: boolean }
 
 let drag: Drag | null = null
+/** What was under the pointer on 'down'. A click decides on this, not on a re-pick at 'up': selecting opens
+ *  the inspector, the viewport narrows, and the object may no longer be under the cursor by then. */
+let downHit: PlanEvent['hit'] = null
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
 const grid = () => store.settings.grid
 const snapDelta = (d: Vec2, free: boolean): Vec2 => (free || !grid() ? d : [Math.round(d[0] / grid()) * grid(), Math.round(d[1] / grid()) * grid()])
@@ -114,6 +117,7 @@ registerTool({
   snaps: () => drag?.type === 'vertex',
   snapSkip: () => (drag?.type === 'vertex' ? { roomId: drag.room.id, vertex: drag.index } : undefined),
   down(e) {
+    downHit = e.hit
     // Priority: corner handle > door/window > wall handle > whatever is under the cursor.
     const h = handleAt(e.raw, e.ppm)
     if (h && 'vertex' in h) return (drag = { type: 'vertex', room: clone(h.room), index: h.vertex! }), true
@@ -175,11 +179,13 @@ registerTool({
     drag = null
     if (!e.moved) {
       if (d && d.type !== 'box' && d.type !== 'move' && d.type !== 'opening') return // click on a handle
-      if (!e.hit) {
+      const hit = downHit ?? (d ? null : e.hit) // no 'down' seen (3D orbit click): fall back to a pick now
+      downHit = null
+      if (!hit) {
         if (!e.shift) store.selection = []
       } else if (e.shift) {
-        store.selection = store.selection.includes(e.hit.id) ? store.selection.filter(i => i !== e.hit!.id) : [...store.selection, e.hit.id]
-      } else store.selection = [e.hit.id]
+        store.selection = store.selection.includes(hit.id) ? store.selection.filter(i => i !== hit.id) : [...store.selection, hit.id]
+      } else store.selection = [hit.id]
       if (d && d.type === 'opening') preview('openings', d.orig.id, { host: d.orig.host, along: d.orig.along })
       return
     }

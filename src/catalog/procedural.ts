@@ -41,6 +41,71 @@ function legs(g: THREE.Group, s: Size, h: number, color: string, inset = 0.05, r
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, r, r, h, color, sx * (s.w / 2 - inset), 0, sz * (s.d / 2 - inset), 8)
 }
 
+// ---------- natural shapes ----------
+
+/** Deterministic pseudo-random sequence, so every tree of a kind is the same model (it's instanced). */
+function rng(seed: number) {
+  let s = (seed * 2654435761) >>> 0 || 1
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296)
+}
+const hash = (x: number, y: number, z: number) => {
+  const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453
+  return v - Math.floor(v)
+}
+function flat(color: string) {
+  const key = `flat${color}`
+  let mat = mats.get(key)
+  if (!mat) mats.set(key, (mat = new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true })))
+  return mat
+}
+function frondMat(color: string) {
+  const key = `frond${color}`
+  let mat = mats.get(key)
+  if (!mat) mats.set(key, (mat = new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, flatShading: true, roughness: 0.9 })))
+  return mat
+}
+const shade = (color: string, dh: number, dl: number) => new THREE.Color(color).offsetHSL(dh, 0, dl).getStyle()
+
+/** A lumpy, faceted clump of leaves: an icosphere with every vertex pushed in or out a little. */
+function clump(g: THREE.Group, r: number, color: string, x: number, y: number, z: number, seed: number, sy = 1, detail = 1) {
+  const geo = new THREE.IcosahedronGeometry(r, detail)
+  const pos = geo.attributes.position
+  for (let i = 0; i < pos.count; i++) {
+    const [vx, vy, vz] = [pos.getX(i), pos.getY(i), pos.getZ(i)]
+    // same position → same push, so the shared corners of faces stay together
+    const k = 0.78 + 0.44 * hash(Math.round(vx * 997) + seed, Math.round(vy * 997), Math.round(vz * 997))
+    pos.setXYZ(i, vx * k, vy * k, vz * k)
+  }
+  geo.computeVertexNormals()
+  // every facet a slightly different green, like light catching separate leaves
+  const base = new THREE.Color(color)
+  const colors: number[] = []
+  for (let f = 0; f < pos.count / 3; f++) {
+    const h = hash(f + seed, seed * 0.37, f * 0.11)
+    const c = base.clone().offsetHSL((h - 0.5) * 0.03, 0, (h - 0.5) * 0.12)
+    for (let k = 0; k < 3; k++) colors.push(c.r, c.g, c.b)
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  const mesh = new THREE.Mesh(geo, leafMat())
+  mesh.position.set(x, y, z)
+  mesh.scale.y = sy
+  g.add(mesh)
+  return mesh
+}
+
+let leaves: THREE.Material | null = null
+const leafMat = () => (leaves ??= new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 }))
+
+/** A tapered limb from a to b. */
+function limb(g: THREE.Group, a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, color: string) {
+  const len = a.distanceTo(b)
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 7), flat(color))
+  mesh.position.copy(a).lerp(b, 0.5)
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize())
+  g.add(mesh)
+  return mesh
+}
+
 const B: Record<string, Builder> = {
   sofa(s, c) {
     const g = new THREE.Group()
@@ -217,15 +282,6 @@ const B: Record<string, Builder> = {
     cyl(g, 0.1, 0.1, 0.02, c.metal, -s.w / 2 + 0.18, s.h - 0.2, -s.d / 2 + 0.15)
     return g
   },
-  plant(s, c) {
-    const g = new THREE.Group()
-    const potH = s.h * 0.3
-    cyl(g, s.w * 0.32, s.w * 0.25, potH, c.pot)
-    cyl(g, 0.015, 0.015, s.h * 0.4, c.trunk, 0, potH, 0, 6)
-    ball(g, s.w * 0.45, c.leaf, 0, s.h - s.w * 0.45, 0, 1.1)
-    ball(g, s.w * 0.3, c.leaf, s.w * 0.15, s.h * 0.62, s.w * 0.1)
-    return g
-  },
   lamp(s, c, p) {
     const g = new THREE.Group()
     const shade = m(c.shade, { rough: 1 })
@@ -244,21 +300,142 @@ const B: Record<string, Builder> = {
     }
     return g
   },
-  tree(s, c) {
+  plant(s, c) {
+    // potted leafy plant: tapered pot with a rim, soil, arching stems ending in leaves
     const g = new THREE.Group()
-    const r = s.w / 2
-    cyl(g, r * 0.06, r * 0.1, s.h * 0.5, c.trunk, 0, 0, 0, 10)
-    ball(g, r * 0.8, c.leaf, 0, s.h - r * 0.9, 0, 1.15)
-    ball(g, r * 0.6, new THREE.Color(c.leaf).offsetHSL(0, 0, 0.05).getStyle(), r * 0.35, s.h - r * 1.3, r * 0.2)
-    ball(g, r * 0.55, new THREE.Color(c.leaf).offsetHSL(0, 0, -0.05).getStyle(), -r * 0.35, s.h - r * 1.25, -r * 0.2)
+    const potH = s.h * 0.3
+    const pr = s.w * 0.3
+    cyl(g, pr, pr * 0.78, potH, c.pot)
+    cyl(g, pr * 1.06, pr * 1.06, potH * 0.12, c.pot, 0, potH * 0.88, 0)
+    cyl(g, pr * 0.95, pr * 0.95, 0.01, '#4a3a2c', 0, potH * 0.86, 0)
+    const rand = rng(5)
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + rand() * 0.4
+      const reach = s.w * (0.18 + rand() * 0.24)
+      const top = potH + (s.h - potH) * (0.45 + rand() * 0.5)
+      const base = new THREE.Vector3(0, potH * 0.9, 0)
+      const tip = new THREE.Vector3(Math.cos(a) * reach, top, Math.sin(a) * reach)
+      limb(g, base, tip, 0.008, 0.005, shade(c.leaf, 0, -0.08))
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 5), flat(shade(c.leaf, (rand() - 0.5) * 0.03, (rand() - 0.5) * 0.08)))
+      leaf.scale.set(s.w * 0.07, 0.012, s.w * 0.16)
+      leaf.position.copy(tip)
+      leaf.rotation.set(0.5 + rand() * 0.4, -a + Math.PI / 2, 0)
+      g.add(leaf)
+    }
     return g
   },
-  bush(s, c) {
+  tree(s, c, p) {
+    // deciduous (or birch): branching trunk under a crown of 9–12 leaf clumps
     const g = new THREE.Group()
+    const rand = rng(Number(p.seed ?? 1))
+    const birch = !!p.birch
+    const R = s.w * (birch ? 0.3 : 0.34) // crown radius
+    const crownY = s.h - R * (birch ? 1.25 : 0.95)
+    const trunkTop = crownY - R * 0.1 // the trunk runs up into the crown
+    const r0 = s.w * (birch ? 0.03 : 0.045)
+    const bark = birch ? '#e9e6df' : c.trunk
+    const lean = new THREE.Vector3((rand() - 0.5) * s.w * 0.05, trunkTop, (rand() - 0.5) * s.w * 0.05)
+    limb(g, new THREE.Vector3(0, 0, 0), lean, r0, r0 * 0.7, bark)
+    if (birch) for (let i = 0; i < 7; i++) box(g, r0 * 2.05, 0.03, r0 * 0.9, '#3f3f46', 0, 0.3 + i * (trunkTop / 8) + rand() * 0.1, r0 * 0.6 * (rand() - 0.5))
+    // Crown: a dome of clumps; bigger trees get more, smaller clumps (and finer ones) rather than a few huge ones.
+    const detail = R > 0.9 ? 2 : 1
+    const clumps: [number, number, number, number][] = [[0, crownY + R * 0.3, 0, R * 0.62]]
+    const n = 8 + Math.round(R * 5)
+    for (let i = 0; i < n; i++) {
+      const a = i * 2.39996 + rand() * 0.3 // golden-angle spiral: even coverage
+      const k = Math.sqrt((i + 0.5) / n)
+      const d = R * (0.2 + 0.55 * k)
+      const y = crownY + R * (0.45 - 0.75 * k) + (rand() - 0.5) * R * 0.2
+      clumps.push([Math.cos(a) * d, y, Math.sin(a) * d, R * (0.5 - 0.18 * k + rand() * 0.08)])
+    }
+    const fork = lean.clone().multiplyScalar(0.7)
+    for (const [x, y, z] of clumps.filter((_, i) => i % 3 === 1).slice(0, 6)) limb(g, fork, new THREE.Vector3(x * 0.75, y - R * 0.15, z * 0.75), r0 * 0.5, r0 * 0.2, bark)
+    clumps.forEach(([x, y, z, r], i) => clump(g, r, shade(c.leaf, (rand() - 0.5) * 0.03, (rand() - 0.5) * 0.08), x, y, z, i * 17 + 3, birch ? 1.25 : 0.95, detail))
+    return g
+  },
+  conifer(s, c, p) {
+    // stacked, ragged cones on a short trunk
+    const g = new THREE.Group()
+    const rand = rng(Number(p.seed ?? 2))
+    cyl(g, s.w * 0.04, s.w * 0.06, s.h * 0.18, c.trunk, 0, 0, 0, 8)
+    const layers = 5
+    for (let i = 0; i < layers; i++) {
+      const k = i / (layers - 1)
+      const r = (s.w / 2) * (1 - k * 0.78)
+      const hgt = s.h * 0.34 * (1 - k * 0.35)
+      const geo = new THREE.ConeGeometry(r, hgt, 11, 2)
+      const pos = geo.attributes.position
+      for (let j = 0; j < pos.count; j++) {
+        const [x, y, z] = [pos.getX(j), pos.getY(j), pos.getZ(j)]
+        const f = 0.85 + 0.3 * hash(Math.round(x * 997) + i, Math.round(y * 997), Math.round(z * 997))
+        pos.setXYZ(j, x * f, y, z * f)
+      }
+      geo.computeVertexNormals()
+      const cone = new THREE.Mesh(geo, flat(shade(c.leaf, 0, (rand() - 0.5) * 0.06 - k * 0.03)))
+      cone.position.y = s.h * 0.15 + k * (s.h * 0.85 - hgt) + hgt / 2
+      cone.rotation.y = rand() * Math.PI
+      g.add(cone)
+    }
+    return g
+  },
+  palm(s, c) {
+    // curved ringed trunk, drooping fronds, a few coconuts
+    const g = new THREE.Group()
+    const segs = 9
+    const trunkH = s.h * 0.82
+    let prev = new THREE.Vector3(0, 0, 0)
+    for (let i = 1; i <= segs; i++) {
+      const k = i / segs
+      const next = new THREE.Vector3(s.w * 0.12 * k * k, trunkH * k, 0)
+      limb(g, prev, next, s.w * (0.05 - 0.015 * k), s.w * (0.045 - 0.015 * k), i % 2 ? c.trunk : shade(c.trunk, 0, 0.08))
+      prev = next
+    }
+    const top = prev
+    const len = s.w * 0.52
+    for (let i = 0; i < 10; i++) {
+      const geo = new THREE.PlaneGeometry(len, s.w * 0.12, 8, 1).translate(len / 2, 0, 0)
+      const pos = geo.attributes.position
+      for (let j = 0; j < pos.count; j++) {
+        const x = pos.getX(j)
+        const taper = 1 - (x / len) * 0.85
+        pos.setY(j, pos.getY(j) * taper)
+        pos.setZ(j, -((x / len) ** 2) * len * 0.55) // droop
+      }
+      geo.computeVertexNormals()
+      const frond = new THREE.Mesh(geo, frondMat(c.leaf))
+      frond.position.copy(top)
+      frond.rotation.set(-Math.PI / 2, 0, (i / 10) * Math.PI * 2)
+      frond.rotateY(-0.35) // lift the frond before it droops
+      g.add(frond)
+    }
+    for (let i = 0; i < 3; i++) ball(g, s.w * 0.035, '#5a4632', top.x + Math.cos(i * 2.1) * 0.08, top.y - 0.08, Math.sin(i * 2.1) * 0.08)
+    return g
+  },
+  bush(s, c, p) {
+    const g = new THREE.Group()
+    const rand = rng(Number(p.seed ?? 4))
     const r = s.w / 2
-    ball(g, r * 0.7, c.leaf, 0, s.h * 0.5, 0, s.h / s.w + 0.3)
-    ball(g, r * 0.5, new THREE.Color(c.leaf).offsetHSL(0, 0, 0.06).getStyle(), r * 0.45, s.h * 0.4, r * 0.1)
-    ball(g, r * 0.5, new THREE.Color(c.leaf).offsetHSL(0, 0, -0.04).getStyle(), -r * 0.4, s.h * 0.38, -r * 0.15)
+    const n = 6
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rand()
+      const d = i ? r * (0.3 + rand() * 0.2) : 0
+      const cr = r * (i ? 0.45 + rand() * 0.12 : 0.6)
+      clump(g, cr, shade(c.leaf, (rand() - 0.5) * 0.03, (rand() - 0.5) * 0.1), Math.cos(a) * d, Math.min(s.h - cr * 0.9, cr * 0.8 + rand() * s.h * 0.25), Math.sin(a) * d, i * 31 + 7, s.h / s.w + 0.1)
+    }
+    if (p.flowers)
+      for (let i = 0; i < 26; i++) {
+        const a = rand() * Math.PI * 2
+        const up = 0.2 + rand() * 0.8
+        ball(g, 0.03, c.flower ?? '#e25d6e', Math.cos(a) * r * 0.75 * (1 - up * 0.4), s.h * (0.35 + up * 0.5), Math.sin(a) * r * 0.75 * (1 - up * 0.4))
+      }
+    return g
+  },
+  hedge(s, c) {
+    // a clipped row: a box core under overlapping clumps
+    const g = new THREE.Group()
+    box(g, s.w * 0.96, s.h * 0.85, s.d * 0.9, flat(shade(c.leaf, 0, -0.05)))
+    const n = Math.max(2, Math.round(s.w / 0.45))
+    for (let i = 0; i < n; i++) clump(g, s.d * 0.5, shade(c.leaf, 0, ((i * 7) % 5) * 0.015 - 0.03), -s.w / 2 + s.d * 0.45 + (i / (n - 1)) * (s.w - s.d * 0.9), s.h - s.d * 0.5, 0, i * 13, 1)
     return g
   },
   flowerBed(s, c) {

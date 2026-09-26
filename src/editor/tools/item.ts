@@ -58,6 +58,9 @@ registerTool({
     at = placeItem(store.toolOptions.item, e.raw, e.ppm, e.alt, turn)
     if (!at) return
     const def = catalogItem(store.toolOptions.item)!
+    // Trees and plants are one instanced model each: a random turn and ±10 % size keep a row from looking cloned.
+    const natural = def.tags.includes('natural') && !at.wall
+    const size = natural ? Math.min(def.scale?.max ?? 2, Math.max(def.scale?.min ?? 0.5, 0.9 + Math.random() * 0.2)) : 1
     const it: Item = {
       id: crypto.randomUUID(),
       floorId: activeFloor.value!.id,
@@ -65,8 +68,8 @@ registerTool({
       x: at.x,
       y: at.y,
       z: 0,
-      rotation: at.rotation,
-      scale: [1, 1, 1],
+      rotation: natural && !turn ? Math.floor(Math.random() * 360) : at.rotation,
+      scale: [size, size, size],
       variant: null,
       name: null
     }
