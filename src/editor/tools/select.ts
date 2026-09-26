@@ -1,18 +1,19 @@
 // Select tool: click / Shift+click / box select; drag to move; with one room selected, drag its
 // vertices or edges, double-click an edge to add a vertex, double-click a vertex to delete it.
 // Drags preview straight into the store and commit one command on release.
-import type { Opening, Room, Vec2, Wall } from '@/types'
+import type { Opening, Room, Stair, Vec2, Wall } from '@/types'
 import { COLORS, type Shape } from '@/scene/overlay'
 import { store, notify } from '../store'
 import { execute, batch, preview, updateEntity, removeEntity, find, type Command } from '../commands'
 import { add, sub, dot, scale, dist, edges, isSimple, projectOnSegment, segDistance, bbox, norm, lerp } from '../geometry'
-import { refitOpenings, openingPoint } from '../model'
+import { refitOpenings, openingPoint, stairRise } from '../model'
+import { solve, toPlan } from '../stairs'
 import { format } from '../units'
 import { registerTool, type PlanEvent } from './index'
 import { placeOpening } from './opening'
 
 type Drag =
-  | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; delta: Vec2 }
+  | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; stairs: Stair[]; delta: Vec2 }
   | { type: 'vertex'; room: Room; index: number }
   | { type: 'edge'; room: Room; index: number; start: Vec2 }
   | { type: 'opening'; orig: Opening }
@@ -60,6 +61,7 @@ function cancelDrag() {
   if (drag.type === 'move') {
     for (const r of drag.rooms) preview('rooms', r.id, { polygon: r.polygon })
     for (const w of drag.walls) preview('walls', w.id, { a: w.a, b: w.b })
+    for (const s of drag.stairs) preview('stairs', s.id, { x: s.x, y: s.y })
   } else if (drag.type === 'vertex' || drag.type === 'edge') preview('rooms', drag.room.id, { polygon: drag.room.polygon })
   else if (drag.type === 'opening') preview('openings', drag.orig.id, { host: drag.orig.host, along: drag.orig.along })
   drag = null
@@ -72,6 +74,8 @@ function inBox(id: string, lo: Vec2, hi: Vec2) {
   if (r) return r.polygon.every(inside)
   const w = d.walls.find(w => w.id === id)
   if (w) return inside(w.a) && inside(w.b)
+  const s = d.stairs.find(s => s.id === id)
+  if (s) return toPlan(s, solve(s.kind, s.params, stairRise(d, s.floorId, store.settings.slab)).footprint).every(inside)
   const o = d.openings.find(o => o.id === id)
   const c = o && openingPoint(d, o)
   return !!c && inside(c)
@@ -99,7 +103,8 @@ registerTool({
         start: e.raw,
         delta: [0, 0],
         rooms: clone(d.rooms.filter(r => ids.includes(r.id))),
-        walls: clone(d.walls.filter(w => ids.includes(w.id)))
+        walls: clone(d.walls.filter(w => ids.includes(w.id))),
+        stairs: clone(d.stairs.filter(s => ids.includes(s.id)))
       }
       return true
     }
@@ -113,6 +118,7 @@ registerTool({
       const d = (drag.delta = snapDelta(sub(e.raw, drag.start), e.alt))
       for (const r of drag.rooms) preview('rooms', r.id, { polygon: r.polygon.map(p => add(p, d)) })
       for (const w of drag.walls) preview('walls', w.id, { a: add(w.a, d), b: add(w.b, d) })
+      for (const s of drag.stairs) preview('stairs', s.id, { x: s.x + d[0], y: s.y + d[1] })
     } else if (drag.type === 'vertex') {
       const poly = clone(drag.room.polygon)
       poly[drag.index] = e.p
@@ -149,13 +155,14 @@ registerTool({
     if (d.type === 'box') {
       const { min, max } = bbox([d.start, d.end])
       const d2 = store.data!
-      const ids = [...d2.rooms, ...d2.walls, ...d2.openings].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
+      const ids = [...d2.rooms, ...d2.walls, ...d2.openings, ...d2.stairs].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
       store.selection = e.shift ? [...new Set([...store.selection, ...ids])] : ids
     } else if (d.type === 'move') {
       if (!d.delta[0] && !d.delta[1]) return
       const cmds = [
         ...d.rooms.map(r => updateEntity('rooms', r.id, { polygon: r.polygon.map(p => add(p, d.delta)) }, { polygon: r.polygon })),
-        ...d.walls.map(w => updateEntity('walls', w.id, { a: add(w.a, d.delta), b: add(w.b, d.delta) }, { a: w.a, b: w.b }))
+        ...d.walls.map(w => updateEntity('walls', w.id, { a: add(w.a, d.delta), b: add(w.b, d.delta) }, { a: w.a, b: w.b })),
+        ...d.stairs.map(s => updateEntity('stairs', s.id, { x: s.x + d.delta[0], y: s.y + d.delta[1] }, { x: s.x, y: s.y }))
       ]
       if (cmds.length) execute(batch('Move', cmds))
     } else if (d.type === 'vertex' || d.type === 'edge') {

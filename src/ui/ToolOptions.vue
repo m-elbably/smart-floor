@@ -8,6 +8,16 @@ const opts = computed(() => {
   const t = store.tool
   if (t === 'template') return { key: 'template' as const, items: Object.entries(TEMPLATES).map(([value, p]) => ({ value, label: p.label, icon: p.icon })) }
   if (t === 'door') return { key: 'door' as const, items: Object.entries(DOOR_PRESETS).map(([value, p]) => ({ value, label: p.label })) }
+  if (t === 'stair')
+    return {
+      key: 'stair' as const,
+      items: [
+        { value: 'straight', label: 'Straight' },
+        { value: 'L', label: 'L-shaped (landing)' },
+        { value: 'U', label: 'U-shaped (landing)' },
+        { value: 'spiral', label: 'Spiral' }
+      ]
+    }
   if (t === 'window') return { key: 'window' as const, items: Object.entries(WINDOW_PRESETS).map(([value, p]) => ({ value, label: p.label })) }
   return null
 })

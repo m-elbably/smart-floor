@@ -1,10 +1,11 @@
 // Entity → Object3D. Objects carry userData { id, kind } for picking. Plan (x, y) → world (x, h, -y).
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import type { Floor, Opening, Room, Vec2 } from '@/types'
+import type { Floor, Opening, Room, Stair, Vec2 } from '@/types'
 import { add, centroid, dot, lerp, norm, scale, sub, wallSegments, dist } from '@/editor/geometry'
 import type { WallView } from '@/editor/model'
 import { FLOOR_MATERIALS } from '@/editor/presets'
+import { COLUMN_R, type StairSolution } from '@/editor/stairs'
 import { LAYER } from './viewport'
 
 const cache = new Map<string, THREE.Material>()
@@ -22,7 +23,11 @@ const glassMat = () => mat('glass', () => new THREE.MeshStandardMaterial({ color
 const pickMat = () => mat('pick', () => new THREE.MeshBasicMaterial())
 
 const v3 = (p: Vec2, y = 0) => new THREE.Vector3(p[0], y, -p[1])
-const shape = (poly: Vec2[]) => new THREE.Shape(poly.map(p => new THREE.Vector2(p[0], p[1])))
+function shape(poly: Vec2[], holes: Vec2[][] = []) {
+  const s = new THREE.Shape(poly.map(p => new THREE.Vector2(p[0], p[1])))
+  for (const h of holes) s.holes.push(new THREE.Path(h.map(p => new THREE.Vector2(p[0], p[1]))))
+  return s
+}
 
 /** Remove from the scene graph and free GPU buffers and label DOM nodes (materials are shared). */
 export function dispose(obj: THREE.Object3D) {
@@ -33,13 +38,14 @@ export function dispose(obj: THREE.Object3D) {
   })
 }
 
-export function buildRoom(room: Room, floor: Floor, label: { title: string; sub: string }) {
+/** `holes`: stairwell voids from stairs on the floor below (plan coords). */
+export function buildRoom(room: Room, floor: Floor, label: { title: string; sub: string }, holes: Vec2[][] = []) {
   const g = new THREE.Group()
   g.userData = { id: room.id, kind: 'room' }
   const depth = Math.max(floor.slab, 0.02)
   const floorColor = FLOOR_MATERIALS[room.floorMaterial]?.color ?? FLOOR_MATERIALS.wood.color
   const slab = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(shape(room.polygon), { depth, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, -depth, 0),
+    new THREE.ExtrudeGeometry(shape(room.polygon, holes), { depth, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, -depth, 0),
     [std(floorColor), std(SLAB_SIDE)]
   )
   slab.receiveShadow = true
@@ -47,7 +53,7 @@ export function buildRoom(room: Room, floor: Floor, label: { title: string; sub:
 
   if (room.ceiling) {
     const ceil = new THREE.Mesh(
-      new THREE.ShapeGeometry(shape(room.polygon)).rotateX(-Math.PI / 2),
+      new THREE.ShapeGeometry(shape(room.polygon, holes)).rotateX(-Math.PI / 2),
       mat('ceiling', () => new THREE.MeshStandardMaterial({ color: '#fafafa', side: THREE.DoubleSide }))
     )
     ceil.position.y = floor.height
@@ -191,4 +197,72 @@ function windowSymbol(o: Opening, w: WallView, from: number, to: number): THREE.
 export function openingFrame(hostA: Vec2, hostB: Vec2, w: WallView) {
   const d = norm(sub(hostB, hostA))
   return { inward: [-d[1], d[0]] as Vec2, hingeAtStart: dot(d, sub(w.b, w.a)) > 0 }
+}
+
+// ---------- stairs ----------
+
+/** A thin bar between two world points (handrails, posts). */
+function bar(a: THREE.Vector3, b: THREE.Vector3, r: number, material: THREE.Material) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(r, r, a.distanceTo(b)), material)
+  m.position.copy(a).lerp(b, 0.5)
+  m.lookAt(b)
+  m.castShadow = true
+  return m
+}
+
+export function buildStair(stair: Stair, sol: StairSolution, totalRise: number) {
+  const g = new THREE.Group()
+  g.userData = { id: stair.id, kind: 'stair' }
+  g.position.set(stair.x, 0, -stair.y)
+  g.rotation.y = (stair.rotation * Math.PI) / 180
+  const wood = std('#c8b08c')
+  const spiral = stair.kind === 'spiral'
+  for (const tr of sol.treads) {
+    // Solid blocks read well for flights; spiral treads float around the column.
+    const depth = spiral ? 0.05 : tr.top
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(shape(tr.poly), { depth, bevelEnabled: false }).rotateX(-Math.PI / 2), [wood, std('#a88f6c')])
+    m.position.y = tr.top - depth
+    m.castShadow = m.receiveShadow = true
+    g.add(m)
+  }
+  if (spiral) {
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(COLUMN_R, COLUMN_R, totalRise + 0.9, 16), std('#71717a'))
+    col.position.y = (totalRise + 0.9) / 2
+    g.add(col)
+  }
+
+  // Railings: posts every other tread plus a handrail 0.9 m above the nosing line.
+  const metal = std('#52525b')
+  const sides: Vec2[][] = []
+  if (stair.params.railLeft && !spiral) sides.push(sol.treads.map(t => t.left))
+  if (stair.params.railRight) sides.push(sol.treads.map(t => t.right))
+  for (const pts of sides) {
+    const tops = pts.map((p, i) => v3(p, sol.treads[i].top + 0.9))
+    for (let i = 0; i < tops.length; i += 2) g.add(bar(v3(pts[i], sol.treads[i].top), tops[i], 0.03, metal))
+    g.add(bar(v3(pts.at(-1)!, sol.treads.at(-1)!.top), tops.at(-1)!, 0.03, metal))
+    for (let i = 1; i < tops.length; i++) g.add(bar(tops[i - 1], tops[i], 0.045, metal))
+  }
+
+  // Plan symbol: tread outlines + walk-line arrow + "UP".
+  const segs: THREE.Vector3[] = []
+  for (const tr of sol.treads) tr.poly.forEach((p, i) => segs.push(v3(p, totalRise + 0.02), v3(tr.poly[(i + 1) % tr.poly.length], totalRise + 0.02)))
+  const w = sol.walk
+  for (let i = 1; i < w.length; i++) segs.push(v3(w[i - 1], totalRise + 0.02), v3(w[i], totalRise + 0.02))
+  const [a, b] = [w[w.length - 2], w[w.length - 1]]
+  const d = sub(b, a)
+  const l = Math.hypot(d[0], d[1]) || 1
+  const u: Vec2 = [d[0] / l, d[1] / l]
+  const back = (s: number): Vec2 => [b[0] - u[0] * 0.25 + -u[1] * s, b[1] - u[1] * 0.25 + u[0] * s]
+  segs.push(v3(b, totalRise + 0.02), v3(back(0.12), totalRise + 0.02), v3(b, totalRise + 0.02), v3(back(-0.12), totalRise + 0.02))
+  const sym = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), lineMat())
+  sym.layers.set(LAYER.plan)
+  g.add(sym)
+  const el = document.createElement('div')
+  el.className = 'room-label stair-label'
+  el.textContent = 'UP'
+  const tag = new CSS2DObject(el)
+  tag.position.copy(v3(w[0], 0.1))
+  tag.layers.set(LAYER.plan)
+  g.add(tag)
+  return g
 }

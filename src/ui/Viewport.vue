@@ -9,6 +9,7 @@ import '@/editor/tools/select'
 import '@/editor/tools/room'
 import '@/editor/tools/wall'
 import '@/editor/tools/opening'
+import '@/editor/tools/stair'
 import { handleKey } from '@/editor/shortcuts'
 
 const el = ref<HTMLElement>()

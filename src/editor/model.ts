@@ -20,6 +20,14 @@ export interface WallView {
 
 export const OPENING_MARGIN = 0.05
 
+/** Height a stair on this floor climbs: up to the floor above, or height + default slab on the top floor. */
+export function stairRise(data: ProjectData, floorId: string, defaultSlab: number) {
+  const f = data.floors.find(f => f.id === floorId)
+  if (!f) return 3
+  const above = data.floors.find(x => x.level === f.level + 1)
+  return above ? above.elevation - f.elevation : f.height + defaultSlab
+}
+
 export function floorWalls(data: ProjectData, floorId: string, s: { wallInterior: number; wallExterior: number }): WallView[] {
   const floor = data.floors.find(f => f.id === floorId)
   const height = floor?.height ?? 2.8

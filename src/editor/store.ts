@@ -31,7 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wallExterior: 0.25
 }
 
-export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window'
+export type ToolId = 'select' | 'rect' | 'polygon' | 'template' | 'wall' | 'door' | 'window' | 'stair'
 
 export const store = reactive({
   projects: [] as Project[],
@@ -46,14 +46,18 @@ export const store = reactive({
   selection: [] as string[],
   hover: null as string | null,
   tool: 'select' as ToolId,
-  toolOptions: { template: 'rect', door: 'single', window: 'standard' },
+  toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight' },
   showLabels: true,
   snapKind: null as SnapKind | null,
   /** Short status-bar hint from the active tool. */
   hint: '',
   /** Transient message for a toast (n bumps so repeats still fire). */
   notice: { text: '', n: 0 },
-  ui: { palette: false, help: false }
+  ui: {
+    palette: false,
+    help: false,
+    confirm: null as null | { title: string; text: string; yes: string; no: string; onYes: () => void; onNo: () => void }
+  }
 })
 
 export function notify(text: string) {

@@ -57,14 +57,22 @@ export interface Opening {
   props: Record<string, unknown>
 }
 
+export interface StairParams {
+  width: number
+  steps: number // risers
+  going: number // tread depth (spiral: on the walk line)
+  railLeft: boolean
+  railRight: boolean
+}
+
 export interface Stair {
   id: string
   floorId: string
   kind: 'straight' | 'L' | 'U' | 'spiral'
-  x: number
+  x: number // bottom-centre of the first step (spiral: column centre)
   y: number
-  rotation: number
-  params: Record<string, unknown>
+  rotation: number // degrees, counter-clockwise
+  params: StairParams
 }
 
 export interface Zone {

@@ -24,7 +24,8 @@ export const TOOLS: { id: ToolId; label: string; icon: string; key: string }[] =
   { id: 'template', label: 'Room template', icon: 'i-lucide-stamp', key: 't' },
   { id: 'wall', label: 'Free wall', icon: 'i-lucide-brick-wall', key: 'w' },
   { id: 'door', label: 'Door', icon: 'i-lucide-door-open', key: 'd' },
-  { id: 'window', label: 'Window', icon: 'i-lucide-app-window', key: 'n' }
+  { id: 'window', label: 'Window', icon: 'i-lucide-app-window', key: 'n' },
+  { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's' }
 ]
 
 const stepFloor = (dir: 1 | -1) => {
@@ -52,7 +53,7 @@ export const actions: Action[] = [
     keys: ['ctrl+a'],
     run: () => {
       const d = store.data!
-      store.selection = [...d.rooms, ...d.walls, ...d.openings].filter(e => e.floorId === store.activeFloorId).map(e => e.id)
+      store.selection = [...d.rooms, ...d.walls, ...d.openings, ...d.stairs].filter(e => e.floorId === store.activeFloorId).map(e => e.id)
     }
   },
   {

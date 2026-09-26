@@ -10,6 +10,7 @@ import ToolOptions from './ToolOptions.vue'
 import Inspector from './Inspector.vue'
 import CommandPalette from './CommandPalette.vue'
 import HelpModal from './HelpModal.vue'
+import ConfirmModal from './ConfirmModal.vue'
 
 const emit = defineEmits<{ settings: [] }>()
 const floorsOpen = ref(false)
@@ -96,5 +97,6 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
     <FloorsModal v-model:open="floorsOpen" />
     <CommandPalette />
     <HelpModal />
+    <ConfirmModal />
   </div>
 </template>

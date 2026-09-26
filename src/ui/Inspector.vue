@@ -4,11 +4,13 @@ import { computed } from 'vue'
 import { store, notify } from '@/editor/store'
 import { execute, batch, updateEntity, locate, type EntityTable, type Entity } from '@/editor/commands'
 import { area, dist, edges } from '@/editor/geometry'
-import { hostLine, fitAlong } from '@/editor/model'
+import { hostLine, fitAlong, stairRise } from '@/editor/model'
+import { solve } from '@/editor/stairs'
+import { warningText } from '@/editor/tools/shapes'
 import { format, formatArea } from '@/editor/units'
 import { FLOOR_MATERIALS, ROOM_KINDS, DOOR_PRESETS, WINDOW_PRESETS } from '@/editor/presets'
 import { deleteSelection } from '@/editor/clipboard'
-import type { Opening, Room, Wall } from '@/types'
+import type { Opening, Room, Stair, StairParams, Wall } from '@/types'
 import LengthInput from './LengthInput.vue'
 
 const sel = computed(() => store.selection.map(id => locate(id)).filter(x => x !== null))
@@ -20,6 +22,22 @@ const list = <T extends EntityTable>() => sel.value.map(s => s.e) as Entity<T>[]
 const rooms = computed(() => (table.value === 'rooms' ? list<'rooms'>() : []))
 const openings = computed(() => (table.value === 'openings' ? list<'openings'>() : []))
 const walls = computed(() => (table.value === 'walls' ? list<'walls'>() : []))
+const stairs = computed(() => (table.value === 'stairs' ? list<'stairs'>() : []))
+
+// ---------- stairs ----------
+const stairSol = (s: Stair) => solve(s.kind, s.params, stairRise(store.data!, s.floorId, store.settings.slab))
+function setStair(patch: Partial<Pick<Stair, 'kind' | 'rotation'>>, params: Partial<StairParams> = {}) {
+  const cmds = stairs.value.map(s => updateEntity('stairs', s.id, { ...patch, params: { ...s.params, ...params } }))
+  execute(cmds.length === 1 ? cmds[0] : batch('Edit stairs', cmds))
+  const w = stairs.value.map(stairSol).flatMap(s => s.warnings)
+  if (w.length) notify(warningText(w[0]))
+}
+const stairKinds = [
+  { value: 'straight', label: 'Straight' },
+  { value: 'L', label: 'L-shaped' },
+  { value: 'U', label: 'U-shaped' },
+  { value: 'spiral', label: 'Spiral' }
+]
 
 /** Shared value, or undefined when mixed. */
 function common<T, K extends keyof T>(items: T[], k: K): T[K] | undefined {
@@ -65,11 +83,12 @@ const one = <T,>(xs: T[]) => (xs.length === 1 ? xs[0] : null)
 const room = computed<Room | null>(() => one(rooms.value))
 const wall = computed<Wall | null>(() => one(walls.value))
 const opening = computed<Opening | null>(() => one(openings.value))
+const stair = computed<Stair | null>(() => one(stairs.value))
 const title = computed(() => {
   const n = sel.value.length
   if (!n) return ''
   if (!table.value) return `${n} items`
-  const label = { rooms: 'Room', walls: 'Wall', openings: common(openings.value, 'kind') === 'window' ? 'Window' : 'Door' }[table.value as string] ?? table.value
+  const label = { rooms: 'Room', walls: 'Wall', stairs: 'Stair', openings: common(openings.value, 'kind') === 'window' ? 'Window' : 'Door' }[table.value as string] ?? table.value
   return n === 1 ? label : `${n} ${label.toLowerCase()}s`
 })
 const u = () => store.settings.units
@@ -179,6 +198,51 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
           </UFormField>
         </div>
         <p v-if="wall" class="text-sm text-muted">Length {{ format(dist(wall.a, wall.b), u()) }}</p>
+      </template>
+
+      <!-- Stairs -->
+      <template v-else-if="stairs.length">
+        <UFormField label="Type">
+          <USelect :model-value="common(stairs, 'kind')" :items="stairKinds" placeholder="Mixed" class="w-full" @update:model-value="(v: unknown) => setStair({ kind: v as Stair['kind'] })" />
+        </UFormField>
+        <div class="grid grid-cols-2 gap-3">
+          <UFormField label="Width">
+            <LengthInput :model-value="stairs[0].params.width" :min="0.6" :max="3" @update:model-value="v => setStair({}, { width: v })" />
+          </UFormField>
+          <UFormField label="Steps">
+            <UInputNumber :model-value="stairs[0].params.steps" :min="3" :max="40" size="sm" @update:model-value="(v: number | null) => v && setStair({}, { steps: v })" />
+          </UFormField>
+          <UFormField label="Going" help="Tread depth">
+            <LengthInput :model-value="stairs[0].params.going" :min="0.15" :max="0.45" @update:model-value="v => setStair({}, { going: v })" />
+          </UFormField>
+          <UFormField label="Rotation">
+            <UInputNumber
+              :model-value="stairs[0].rotation"
+              :step="15"
+              size="sm"
+              :format-options="{ style: 'unit', unit: 'degree' }"
+              @update:model-value="(v: number | null) => v !== null && setStair({ rotation: ((v % 360) + 360) % 360 })"
+            />
+          </UFormField>
+        </div>
+        <USwitch v-if="common(stairs, 'kind') !== 'spiral'" :model-value="stairs[0].params.railLeft" label="Railing left" @update:model-value="(v: boolean) => setStair({}, { railLeft: v })" />
+        <USwitch :model-value="stairs[0].params.railRight" :label="common(stairs, 'kind') === 'spiral' ? 'Railing (outer)' : 'Railing right'" @update:model-value="(v: boolean) => setStair({}, { railRight: v })" />
+        <template v-if="stair">
+          <dl class="grid grid-cols-2 gap-y-1 text-sm pt-2 border-t border-default">
+            <dt class="text-muted">Total rise</dt>
+            <dd class="text-right tabular-nums">{{ format(stairRise(store.data!, stair.floorId, store.settings.slab), u()) }}</dd>
+            <dt class="text-muted">Rise per step</dt>
+            <dd class="text-right tabular-nums">{{ format(stairSol(stair).rise, u(), 3) }}</dd>
+            <dt class="text-muted">Run length</dt>
+            <dd class="text-right tabular-nums">{{ format(stairSol(stair).runLength, u()) }}</dd>
+          </dl>
+          <div class="flex flex-col gap-1.5">
+            <UBadge v-for="w in stairSol(stair).warnings" :key="w.code" color="warning" variant="subtle" icon="i-lucide-triangle-alert" class="whitespace-normal">
+              {{ warningText(w) }}
+            </UBadge>
+            <UBadge v-if="!stairSol(stair).warnings.length" color="success" variant="subtle" icon="i-lucide-check">Comfortable stair</UBadge>
+          </div>
+        </template>
       </template>
 
       <p v-else class="text-sm text-muted">Mixed selection. Select items of one kind to edit their properties.</p>

@@ -9,6 +9,7 @@ import { snap, type SnapHit } from '../snapping'
 import { snapTargets, floorWalls, openingOnWall } from '../model'
 import { add, norm, scale, sub } from '../geometry'
 import type { Opening } from '@/types'
+import { stairShapes } from './shapes'
 
 export interface Hit {
   id: string
@@ -159,6 +160,8 @@ function outline(id: string, color: string, width: number): Shape[] {
     const fp = openingFootprint(o)
     return fp ? [{ kind: 'line', points: fp, closed: true, color, width }] : []
   }
+  const s = data.stairs.find(s => s.id === id)
+  if (s) return stairShapes(s, color, width)
   const w = data.walls.find(w => w.id === id)
   if (w) {
     const d = norm(sub(w.b, w.a))

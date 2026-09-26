@@ -183,13 +183,26 @@ A milestone is done only when its **Verify** box is checked.
     - An opening's hinge is relative to its host edge direction; "in" swings into the host room.
     - While dragging, an opening stays on its own wall.
 
-## M7 — Stairs `[FR-40..44]`
-- [ ] `editor/stairs.ts` `solve()` for straight, L, U and spiral, with comfort warnings. `stairs.check.ts`. `[FR-41, FR-42]`
-- [ ] Stair tool: preset picker, ghost footprint, click to place, R to rotate. `[FR-40]`
-- [ ] Stair builder: step boxes, landings, optional railings. `[FR-44]`
-- [ ] Inspector fields: width, steps, railings. Warnings appear as a `UBadge` plus a toast. `[FR-42]`
-- [ ] Stairwell void cut into the floor above's slab from the footprint. On the top floor, ask whether to create a floor above. `[FR-43]`
-- [ ] **Verify:** place a straight stair from ground to floor 1. It reaches floor 1 exactly, the void is visible on floor 1, and 12 steps over 3.0 m shows a warning.
+## M7 — Stairs `[FR-40..44]` ✅
+- [x] `editor/stairs.ts` `solve()` for straight, L, U and spiral, with comfort warnings. `stairs.check.ts`. `[FR-41, FR-42]`
+- [x] Stair tool: preset picker, ghost footprint, click to place, R to rotate. `[FR-40]`
+- [x] Stair builder: step boxes, landings, optional railings. `[FR-44]`
+- [x] Inspector fields: width, steps, railings. Warnings appear as a `UBadge` plus a toast. `[FR-42]`
+- [x] Stairwell void cut into the floor above's slab from the footprint. On the top floor, ask whether to create a floor above. `[FR-43]`
+- [ ] **Verify (user, real app):** place a straight stair from ground to floor 1. It reaches floor 1 exactly, the void is visible on floor 1, and 12 steps over 3.0 m shows a warning.
+  - Headless check done:
+    - A straight stair on the ground floor with 17 steps × 17.6 cm = 3.00 m gives "Comfortable stair". The last tread plus one rise equals the floor-1 elevation (`stairs.check.ts`).
+    - The void on floor 1 shows the stair below in 2D.
+    - 12 steps gives 25 cm rise badges plus a toast.
+    - Placing a stair on the top floor asks to add a floor above.
+    - L, U and spiral render with railings.
+  - As built:
+    - `Stair.params` is typed (`StairParams`).
+    - `x, y` is the bottom-centre of the first step (the column centre for spiral).
+    - Total rise = the floor above's elevation − this floor's, or height + default slab on the top floor.
+    - Flights are solid blocks; spiral treads float around a column.
+    - The plan symbol (tread lines, walk-line arrow, "UP") is 2D-only.
+    - The void clips each convex footprint piece to the room (Sutherland–Hodgman) and pulls it 2 mm inward.
 
 ## M8 — Garden & outdoor `[FR-50..52]`
 - [ ] Zone tool: polygon, reusing the polygon tool logic. Kinds: grass, patio, path, driveway, pool. `[FR-50]`
