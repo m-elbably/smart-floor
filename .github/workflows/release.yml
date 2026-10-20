@@ -1,0 +1,25 @@
+# Push a tag like v0.2.0 to build every platform and attach the archive to a GitHub release.
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx neu update
+      - run: npm run build
+      - run: gh release create "$GITHUB_REF_NAME" release/smart-floor-release.zip --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

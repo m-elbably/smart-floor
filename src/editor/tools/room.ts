@@ -5,7 +5,7 @@ import { store, activeFloor, notify, type ToolId } from '../store'
 import { execute, addEntity, batch, type Command } from '../commands'
 import { area, centroid, dist, ensureCCW, isSimple, lerp, EPS, norm, sub, add, scale } from '../geometry'
 import { format, formatArea } from '../units'
-import { TEMPLATES } from '../presets'
+import { getTemplate } from '../templates'
 import { itemFootprint } from '@/catalog'
 import { registerTool, type PlanEvent } from './index'
 import { createEntry } from './entry'
@@ -29,7 +29,7 @@ export function addRoom(polygon: Vec2[], extra: Partial<Room> = {}, more: Comman
     polygon: ensureCCW(polygon),
     floorMaterial: 'wood',
     wallColor: '#f2efe9',
-    ceiling: true,
+    ceiling: extra.kind !== 'outdoor',
     ...extra
   }
   room.name = uniqueName(extra.name ?? 'Room')
@@ -204,7 +204,8 @@ polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
     for (let i = 0; i < turns; i++) p = [-p[1], p[0]]
     return [p[0] + cur![0], p[1] + cur![1]]
   }
-  const shape = (): Vec2[] => (TEMPLATES[store.toolOptions.template] ?? TEMPLATES.rect).polygon.map(place)
+  const currentTemplate = () => getTemplate(store.toolOptions.template)
+  const shape = (): Vec2[] => currentTemplate().polygon.map(place)
   registerTool({
     id: 'template',
     snaps: () => true,
@@ -213,13 +214,24 @@ polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
     },
     up(e) {
       if (e.moved || !cur) return
-      const t = TEMPLATES[store.toolOptions.template] ?? TEMPLATES.rect
+      const t = currentTemplate()
       const floorId = activeFloor.value!.id
       const furniture = (t.items ?? []).map(i => {
         const [x, y] = place(i.at)
-        return addEntity('items', { id: crypto.randomUUID(), floorId, catalogId: i.catalogId, x, y, z: 0, rotation: (i.rotation + turns * 90) % 360, scale: [1, 1, 1], variant: null, name: null })
+        return addEntity('items', {
+          id: crypto.randomUUID(),
+          floorId,
+          catalogId: i.catalogId,
+          x,
+          y,
+          z: i.z ?? 0,
+          rotation: (i.rotation + turns * 90) % 360,
+          scale: i.scale ?? [1, 1, 1],
+          variant: i.variant ?? null,
+          name: i.name ?? null
+        })
       })
-      addRoom(shape(), { name: t.name, kind: t.kind, floorMaterial: t.floorMaterial }, furniture)
+      addRoom(shape(), { name: t.name, kind: t.kind, floorMaterial: t.floorMaterial, wallColor: t.wallColor ?? '#f2efe9' }, furniture)
     },
     key(e) {
       if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) return (turns = (turns + 1) % 4), true
@@ -231,14 +243,14 @@ polygonTool({ id: 'polygon', done: poly => addRoom(poly) })
     preview() {
       if (!cur) return []
       const poly = shape()
-      const t = TEMPLATES[store.toolOptions.template] ?? TEMPLATES.rect
+      const t = currentTemplate()
       return [
         { kind: 'fill', points: poly, color: COLORS.draw },
         { kind: 'line', points: poly, closed: true, color: COLORS.draw, dashed: true },
         { kind: 'label', at: centroid(poly), text: `${t.name} · ${formatArea(area(poly), units())}` },
         ...(t.items ?? []).map(i => {
           const [x, y] = place(i.at)
-          return { kind: 'line' as const, points: itemFootprint({ catalogId: i.catalogId, x, y, rotation: i.rotation + turns * 90, scale: [1, 1, 1] }), closed: true, color: COLORS.draw, width: 1 }
+          return { kind: 'line' as const, points: itemFootprint({ catalogId: i.catalogId, x, y, rotation: i.rotation + turns * 90, scale: i.scale ?? [1, 1, 1] }), closed: true, color: COLORS.draw, width: 1 }
         })
       ]
     },

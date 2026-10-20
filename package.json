@@ -1,10 +1,13 @@
 {
   "name": "smart-floor",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Offline desktop app for sketching houses in 2D, 3D and first-person walk-through.",
+  "license": "MIT",
+  "author": "Mohamed El-Bably",
   "type": "module",
   "scripts": {
-    "postinstall": "cp node_modules/sql.js/dist/sql-wasm.wasm public/sql-wasm.wasm",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm','public/sql-wasm.wasm')\"",
     "dev": "neu run",
     "vite": "vite",
     "build": "node scripts/check-index.mjs && vite build && neu build --release",

@@ -73,6 +73,19 @@ near(g.segDistance([-3, 4], [0, 0], [4, 0]), 5)
   near(Math.max(e2.a[0], e2.b[0]), 4.2, 'extended at convex corner')
 }
 
+// outdoor room: no walls of its own; the edge it shares with an indoor room stays an exterior wall
+{
+  assert.equal(g.deriveWalls([{ id: 'p', polygon: rect(0, 0, 4, 3), kind: 'outdoor' }], 0.1, 0.2).length, 0)
+  const w = g.deriveWalls([{ id: 'a', polygon: rect(0, 0, 4, 3) }, { id: 'p', polygon: rect(4, 0, 3, 3), kind: 'outdoor' }], 0.1, 0.2)
+  assert.equal(w.length, 4)
+  assert.ok(w.every(x => x.exterior && x.thickness === 0.2 && x.hosts[0].roomId === 'a'))
+  const shared = w.find(x => x.hosts.length === 2)!
+  near(shared.a[0], 4.1, 'pushed out of the indoor room')
+  near(g.dist(shared.a, shared.b), 3.4, 'extended at both corners')
+  const bottom = w.find(x => x.hosts[0].edge === 0)!
+  near(g.dist(bottom.a, bottom.b), 4.4, 'outdoor neighbour does not count as a continuation')
+}
+
 // wallSegments
 assert.deepEqual(g.wallSegments(5, [{ id: 'd', center: 2, width: 1 }]), [{ from: 0, to: 1.5 }, { from: 1.5, to: 2.5, openingId: 'd' }, { from: 2.5, to: 5 }])
 assert.deepEqual(g.wallSegments(3, [{ id: 'd', center: 0.4, width: 0.8 }]), [{ from: 0, to: 0.8, openingId: 'd' }, { from: 0.8, to: 3 }], 'at start')

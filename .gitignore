@@ -5,7 +5,5 @@ bin/
 .tmp/
 neutralinojs.log
 .storage/
-auto-imports.d.ts
-components.d.ts
 public/sql-wasm.wasm
 .tmp-run.log

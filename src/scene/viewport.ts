@@ -161,6 +161,23 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
     else tweenTo(to, () => (orbit.enabled = true))
   }
 
+  /** Frame the active floor's contents (or the origin when empty), keeping the current 2D/3D view. */
+  function fit() {
+    if (walking()) return
+    finishTween()
+    const box = new THREE.Box3().setFromObject(floorGroup(floorState.activeId))
+    const size = box.isEmpty() ? new THREE.Vector3(10, 0, 10) : box.getSize(new THREE.Vector3())
+    const c = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3())
+    const fitPpm = THREE.MathUtils.clamp(0.8 * Math.min(s.w / Math.max(size.x, 1), s.h / Math.max(size.z, 1)), PPM.min, PPM.max)
+    if (s.view === '2d') {
+      s.center = [c.x, -c.z]
+      s.ppm = fitPpm
+      updateOrtho()
+      return requestRender()
+    }
+    tweenTo(pose(new THREE.Vector3(c.x, s.elevation, c.z), presets.iso, distFor(fitPpm)), () => (orbit.enabled = true))
+  }
+
   // ---------- 2D pan / zoom ----------
   function pan(dx: number, dy: number) {
     if (s.view !== '2d' || tween) return
@@ -505,6 +522,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       return s.view
     },
     preset,
+    fit,
     pan,
     setSpace,
     setFloors,

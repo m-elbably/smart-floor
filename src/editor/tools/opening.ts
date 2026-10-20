@@ -4,7 +4,7 @@ import type { Opening, OpeningHost, Vec2 } from '@/types'
 import { COLORS, type Shape } from '@/scene/overlay'
 import { store, activeFloor, notify } from '../store'
 import { execute, addEntity } from '../commands'
-import { dist, projectOnSegment, segDistance } from '../geometry'
+import { dist, projectOnSegment, segDistance, add, sub, scale, norm, lerp, dot } from '../geometry'
 import { floorWalls, hostLine, openingOnWall, fitAlong, OPENING_MARGIN } from '../model'
 import { DOOR_PRESETS, WINDOW_PRESETS } from '../presets'
 import { format } from '../units'
@@ -59,8 +59,70 @@ export function placeOpening(raw: Vec2, width: number, ppm: number, snapStep: bo
   return { host, along: fit, valid: !clash, why: clash ? 'Overlaps another opening' : undefined }
 }
 
+/**
+ * Renders dimension lines and distance labels showing the distance
+ * from the start and end of the host wall to the opening edges.
+ */
+export function openingDistanceGuides(host: OpeningHost, along: number, width: number, cursor?: Vec2 | null): Shape[] {
+  if (!store.data) return []
+  const line = hostLine(store.data, host)
+  if (!line) return []
+  const [p0, p1] = line
+  const L = dist(p0, p1)
+  if (L <= 0) return []
+
+  const dir = norm(sub(p1, p0))
+  const n: Vec2 = [-dir[1], dir[0]]
+
+  // Offset dimension line toward the cursor side of the wall
+  const side = cursor ? (dot(sub(cursor, p0), n) >= 0 ? 1 : -1) : 1
+  const offDist = 0.35
+  const offset = scale(n, side * offDist)
+
+  const dStart = Math.max(0, along - width / 2)
+  const dEnd = Math.max(0, L - (along + width / 2))
+
+  const edgeStart = add(p0, scale(dir, dStart))
+  const edgeEnd = add(p0, scale(dir, Math.min(L, along + width / 2)))
+
+  const fromStart = add(p0, offset)
+  const toStart = add(edgeStart, offset)
+  const fromEnd = add(edgeEnd, offset)
+  const toEnd = add(p1, offset)
+
+  const tick = scale(n, side * 0.12)
+  const shapes: Shape[] = []
+  const u = store.settings.units
+
+  // Start span dimension line & label
+  if (dStart > 0.02) {
+    shapes.push({ kind: 'line', points: [fromStart, toStart], color: COLORS.guide, width: 1.5 })
+    shapes.push({ kind: 'line', points: [p0, add(fromStart, tick)], color: COLORS.guide, width: 1, dashed: true })
+    shapes.push({ kind: 'line', points: [edgeStart, add(toStart, tick)], color: COLORS.guide, width: 1, dashed: true })
+    shapes.push({ kind: 'label', at: lerp(fromStart, toStart, 0.5), text: format(dStart, u) })
+  } else {
+    shapes.push({ kind: 'label', at: fromStart, text: format(0, u) })
+  }
+
+  // End span dimension line & label
+  if (dEnd > 0.02) {
+    shapes.push({ kind: 'line', points: [fromEnd, toEnd], color: COLORS.guide, width: 1.5 })
+    shapes.push({ kind: 'line', points: [edgeEnd, add(fromEnd, tick)], color: COLORS.guide, width: 1, dashed: true })
+    shapes.push({ kind: 'line', points: [p1, add(toEnd, tick)], color: COLORS.guide, width: 1, dashed: true })
+    shapes.push({ kind: 'label', at: lerp(fromEnd, toEnd, 0.5), text: format(dEnd, u) })
+  } else {
+    shapes.push({ kind: 'label', at: toEnd, text: format(0, u) })
+  }
+
+  // Ticks at wall endpoints
+  shapes.push({ kind: 'dots', points: [p0, p1], color: COLORS.guide, size: 7 })
+
+  return shapes
+}
+
 function makeTool(kind: 'door' | 'window') {
   let at: Placement | null = null
+  let cur: Vec2 | null = null
   let flip = 0
   const preset = () => {
     const presets = kind === 'door' ? DOOR_PRESETS : WINDOW_PRESETS
@@ -72,10 +134,12 @@ function makeTool(kind: 'door' | 'window') {
     id: kind,
     snaps: () => false,
     move(e) {
+      cur = e.raw
       at = placeOpening(e.raw, preset().width, e.ppm, !e.alt)
     },
     up(e) {
       if (e.moved) return
+      cur = e.raw
       at = placeOpening(e.raw, preset().width, e.ppm, !e.alt)
       if (!at) return
       if (!at.valid) return notify(at.why ?? 'Cannot place here')
@@ -100,6 +164,7 @@ function makeTool(kind: 'door' | 'window') {
     },
     cancel() {
       at = null
+      cur = null
     },
     preview() {
       if (!at) return []
@@ -111,8 +176,19 @@ function makeTool(kind: 'door' | 'window') {
         { kind: 'fill', points: fp, color, opacity: 0.35 },
         { kind: 'line', points: fp, closed: true, color }
       ]
+
+      if (at.valid) {
+        shapes.push(...openingDistanceGuides(at.host, at.along, p.width, cur))
+      }
+
+      const line = hostLine(store.data!, at.host)
+      const L = line ? dist(line[0], line[1]) : 0
+      const dStart = Math.max(0, at.along - p.width / 2)
+      const dEnd = Math.max(0, L - (at.along + p.width / 2))
+      const distInfo = L > 0 ? ` · ${format(dStart, store.settings.units)} | ${format(dEnd, store.settings.units)}` : ''
+
       const label = at.valid
-        ? `${p.label}${kind === 'door' ? ` · hinge ${FLIPS[flip].hinge}, opens ${FLIPS[flip].swing}` : ` · sill ${format(p.sill, store.settings.units)}`}`
+        ? `${p.label}${distInfo}${kind === 'door' ? ` · hinge ${FLIPS[flip].hinge}, opens ${FLIPS[flip].swing}` : ` · sill ${format(p.sill, store.settings.units)}`}`
         : at.why!
       shapes.push({ kind: 'label', at: fp[2], text: label, tone: at.valid ? 'default' : 'error' })
       return shapes

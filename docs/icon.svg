@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Smart Floor</title>
+  <rect x="12" y="12" width="232" height="232" rx="44" fill="#10b981"/>
+  <g fill="#fff">
+    <!-- outer walls, door gap at the bottom -->
+    <path d="M58 62h140v131h-58v-14h44V76H72v103h36v14H58z"/>
+    <!-- inner wall around the right room -->
+    <path d="M132 76h10v61h42v11h-52z"/>
+    <!-- stairs -->
+    <rect x="77" y="81.5" width="46" height="5"/>
+    <rect x="77" y="96.5" width="46" height="5"/>
+    <rect x="77" y="111.5" width="46" height="5"/>
+    <rect x="77" y="126.5" width="46" height="5"/>
+    <rect x="77" y="141.5" width="46" height="5"/>
+  </g>
+  <!-- door swing -->
+  <path d="M108 149a30 30 0 0 1 30 30" fill="none" stroke="#fff" stroke-width="4"/>
+</svg>

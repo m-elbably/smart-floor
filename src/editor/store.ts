@@ -10,6 +10,7 @@ import * as floorOps from './floors'
 import type { Units } from './units'
 import * as commands from './commands'
 import type { SnapKind } from './snapping'
+import type { RoomTemplate } from './presets'
 
 export interface Settings {
   units: Units
@@ -55,6 +56,7 @@ export const store = reactive({
   hover: null as string | null,
   tool: 'select' as ToolId,
   toolOptions: { template: 'rect', door: 'single', window: 'standard', stair: 'straight', zone: 'grass', wall: 'wall', item: '' },
+  customTemplates: [] as RoomTemplate[],
   catalogOpen: true,
   walkLocked: false,
   showDims: false,
@@ -68,6 +70,10 @@ export const store = reactive({
     palette: false,
     help: false,
     summary: false,
+    templates: false,
+    saveTemplate: false,
+    /** Bumped to frame the active floor in the viewport. */
+    fit: 0,
     export: null as null | 'png' | 'glb' | 'pdf',
     confirm: null as null | { title: string; text: string; yes: string; no: string; onYes: () => void; onNo: () => void }
   }
@@ -85,12 +91,44 @@ const uid = () => crypto.randomUUID()
 
 export function loadSettings() {
   store.settings = { ...DEFAULT_SETTINGS, ...repo.getSetting(useDb(), 'settings', {}) }
+  try {
+    store.customTemplates = repo.getSetting(useDb(), 'customTemplates', [])
+  } catch {
+    store.customTemplates = []
+  }
 }
 
 export function saveSettings(patch: Partial<Settings>) {
   Object.assign(store.settings, patch)
   repo.setSetting(useDb(), 'settings', store.settings)
   scheduleSave()
+}
+
+export function saveCustomTemplate(template: RoomTemplate): string {
+  const id = template.id || `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+  const t: RoomTemplate = { ...template, id, custom: true, createdAt: template.createdAt ?? Date.now() }
+  const existing = store.customTemplates.findIndex(x => x.id === id)
+  if (existing >= 0) {
+    store.customTemplates[existing] = t
+  } else {
+    store.customTemplates.push(t)
+  }
+  try {
+    repo.setSetting(useDb(), 'customTemplates', store.customTemplates)
+    scheduleSave()
+  } catch {}
+  return id
+}
+
+export function deleteCustomTemplate(id: string) {
+  store.customTemplates = store.customTemplates.filter(t => t.id !== id)
+  try {
+    repo.setSetting(useDb(), 'customTemplates', store.customTemplates)
+    scheduleSave()
+  } catch {}
+  if (store.toolOptions.template === id) {
+    store.toolOptions.template = 'rect'
+  }
 }
 
 // ---------- projects ----------

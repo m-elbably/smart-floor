@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
   "applicationId": "com.greenpvl.smartfloor",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "defaultMode": "window",
   "port": 0,
   "documentRoot": "/dist/",
@@ -15,7 +15,9 @@
   },
   "nativeAllowList": [
     "app.*",
-    "os.*",
+    "os.getPath",
+    "os.showOpenDialog",
+    "os.showSaveDialog",
     "filesystem.*",
     "window.*",
     "events.*",

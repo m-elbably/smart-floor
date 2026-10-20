@@ -62,6 +62,7 @@ let lastPulse = ''
 
 export function setTool(id: ToolId) {
   current()?.cancel?.()
+  if (id !== 'item') store.catalogOpen = false
   store.tool = id
   refresh()
 }

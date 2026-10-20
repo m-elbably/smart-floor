@@ -14,6 +14,8 @@ import HelpModal from './HelpModal.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import SummaryPanel from './SummaryPanel.vue'
 import ExportModal from './ExportModal.vue'
+import RoomTemplatesModal from './RoomTemplatesModal.vue'
+import SaveTemplateModal from './SaveTemplateModal.vue'
 
 const emit = defineEmits<{ settings: [] }>()
 const floorsOpen = ref(false)
@@ -103,6 +105,9 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
             />
           </UFieldGroup>
         </UTooltip>
+        <UTooltip text="Reset view" :kbds="['Home']">
+          <UButton icon="i-lucide-scan" color="neutral" variant="outline" aria-label="Reset view" :disabled="store.view === 'walk'" @click="store.ui.fit++" />
+        </UTooltip>
         <UDropdownMenu :items="presetItems">
           <UButton icon="i-lucide-eye" color="neutral" variant="outline" aria-label="View options" />
         </UDropdownMenu>
@@ -135,5 +140,7 @@ const saveIcon = { saved: 'i-lucide-check', dirty: 'i-lucide-circle-dot', saving
     <ConfirmModal />
     <SummaryPanel />
     <ExportModal :snapshot="s => viewport!.snapshot(s)" :glb="a => viewport!.exportGlb(a)" />
+    <RoomTemplatesModal />
+    <SaveTemplateModal />
   </div>
 </template>

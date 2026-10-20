@@ -6,6 +6,9 @@ import { copy, cut, paste, duplicate, deleteSelection } from './clipboard'
 import { lastEvent } from './tools'
 import type { ToolId } from './store'
 
+import { openTemplates } from './templates'
+import { rotateSelection } from './rotate'
+
 export interface Action {
   id: string
   label: string
@@ -17,24 +20,23 @@ export interface Action {
   enabled?: () => boolean
 }
 
-export const TOOLS: { id: ToolId; label: string; icon: string; key: string }[] = [
-  { id: 'select', label: 'Select', icon: 'i-lucide-mouse-pointer-2', key: 'v' },
-  { id: 'rect', label: 'Rectangle room', icon: 'i-lucide-square', key: 'r' },
-  { id: 'polygon', label: 'Polygon room', icon: 'i-lucide-pentagon', key: 'p' },
-  { id: 'template', label: 'Room template', icon: 'i-lucide-stamp', key: 't' },
-  { id: 'wall', label: 'Free wall', icon: 'i-lucide-brick-wall', key: 'w' },
-  { id: 'door', label: 'Door', icon: 'i-lucide-door-open', key: 'd' },
-  { id: 'window', label: 'Window', icon: 'i-lucide-app-window', key: 'n' },
-  { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's' },
-  { id: 'zone', label: 'Garden zone', icon: 'i-lucide-trees', key: 'g' },
-  { id: 'site', label: 'Site boundary', icon: 'i-lucide-land-plot', key: 'b' },
-  { id: 'item', label: 'Furniture (catalog)', icon: 'i-lucide-armchair', key: 'f' },
-  { id: 'measure', label: 'Measure', icon: 'i-lucide-ruler', key: 'm' }
+export const TOOLS: { id: ToolId; label: string; icon: string; key: string; group: string }[] = [
+  { id: 'select', label: 'Select', icon: 'i-lucide-mouse-pointer-2', key: 'v', group: 'Edit' },
+  { id: 'measure', label: 'Measure', icon: 'i-lucide-ruler', key: 'm', group: 'Edit' },
+  { id: 'rect', label: 'Rectangle room', icon: 'i-lucide-square', key: 'r', group: 'Build' },
+  { id: 'polygon', label: 'Polygon room', icon: 'i-lucide-pentagon', key: 'p', group: 'Build' },
+  { id: 'template', label: 'Room template', icon: 'i-lucide-stamp', key: 't', group: 'Build' },
+  { id: 'wall', label: 'Free wall', icon: 'i-lucide-brick-wall', key: 'w', group: 'Build' },
+  { id: 'stair', label: 'Stair', icon: 'i-lucide-footprints', key: 's', group: 'Build' },
+  { id: 'door', label: 'Door', icon: 'i-lucide-door-open', key: 'd', group: 'Build' },
+  { id: 'window', label: 'Window', icon: 'i-lucide-app-window', key: 'n', group: 'Build' },
+  { id: 'item', label: 'Furniture (catalog)', icon: 'i-lucide-armchair', key: 'f', group: 'Place' },
+  { id: 'zone', label: 'Garden zone', icon: 'i-lucide-trees', key: 'g', group: 'Place' },
+  { id: 'site', label: 'Site boundary', icon: 'i-lucide-land-plot', key: 'b', group: 'Place' }
 ]
 
 export function openCatalog() {
   store.catalogOpen = true
-  if (!store.toolOptions.item) return
   setTool('item')
 }
 
@@ -47,13 +49,30 @@ const stepFloor = (dir: 1 | -1) => {
 const hasSel = () => store.selection.length > 0
 
 export const actions: Action[] = [
-  ...TOOLS.map(t => ({ id: `tool.${t.id}`, label: t.label, group: 'Tools' as const, icon: t.icon, keys: [t.key], run: () => (t.id === 'item' ? openCatalog() : setTool(t.id)) })),
+  ...TOOLS.map(t => ({
+    id: `tool.${t.id}`,
+    label: t.label,
+    group: 'Tools' as const,
+    icon: t.icon,
+    keys: [t.key],
+    run: () => (t.id === 'item' ? openCatalog() : t.id === 'template' ? openTemplates() : setTool(t.id))
+  })),
+  {
+    id: 'saveRoomTemplate',
+    label: 'Save selected room as template…',
+    group: 'Edit',
+    icon: 'i-lucide-bookmark-plus',
+    run: () => (store.ui.saveTemplate = true),
+    enabled: () => store.selection.length === 1 && (store.data?.rooms.some(r => r.id === store.selection[0]) ?? false)
+  },
   { id: 'undo', label: 'Undo', group: 'Edit', icon: 'i-lucide-undo-2', keys: ['ctrl+z'], run: undo, enabled: () => !!history.undo },
   { id: 'redo', label: 'Redo', group: 'Edit', icon: 'i-lucide-redo-2', keys: ['ctrl+shift+z', 'ctrl+y'], run: redo, enabled: () => !!history.redo },
   { id: 'copy', label: 'Copy', group: 'Edit', icon: 'i-lucide-copy', keys: ['ctrl+c'], run: () => void copy(), enabled: hasSel },
   { id: 'cut', label: 'Cut', group: 'Edit', icon: 'i-lucide-scissors', keys: ['ctrl+x'], run: cut, enabled: hasSel },
   { id: 'paste', label: 'Paste at cursor', group: 'Edit', icon: 'i-lucide-clipboard-paste', keys: ['ctrl+v'], run: () => paste(lastEvent()?.p) },
   { id: 'duplicate', label: 'Duplicate', group: 'Edit', icon: 'i-lucide-copy-plus', keys: ['ctrl+d'], run: duplicate, enabled: hasSel },
+  { id: 'rotateCw', label: 'Rotate selection clockwise (+15°)', group: 'Edit', icon: 'i-lucide-rotate-cw', run: () => rotateSelection(15), enabled: hasSel },
+  { id: 'rotateCcw', label: 'Rotate selection counter-clockwise (-15°)', group: 'Edit', icon: 'i-lucide-rotate-ccw', run: () => rotateSelection(-15), enabled: hasSel },
   { id: 'delete', label: 'Delete selection', group: 'Edit', icon: 'i-lucide-trash-2', keys: ['delete', 'backspace'], run: () => deleteSelection(), enabled: hasSel },
   {
     id: 'selectAll',
@@ -74,6 +93,11 @@ export const actions: Action[] = [
     run: () => {
       if (store.view === 'walk') return void (store.view = '3d')
       cancelTool()
+      if (store.catalogOpen) {
+        store.catalogOpen = false
+        if (store.tool === 'item') setTool('select')
+        return
+      }
       if (store.tool !== 'select') setTool('select')
       else store.selection = []
     }
@@ -87,6 +111,7 @@ export const actions: Action[] = [
     enabled: () => !!store.data?.project.site
   },
   { id: 'view', label: 'Cycle 2D → 3D → Walk', group: 'View', icon: 'i-lucide-box', keys: ['tab'], run: () => (store.view = ({ '2d': '3d', '3d': 'walk', walk: '2d' } as const)[store.view]) },
+  { id: 'fit', label: 'Reset view', group: 'View', icon: 'i-lucide-scan', keys: ['home'], run: () => store.ui.fit++, enabled: () => store.view !== 'walk' },
   { id: 'walk', label: 'Walk through', group: 'View', icon: 'i-lucide-person-standing', run: () => (store.view = 'walk') },
   { id: 'dims', label: 'Toggle wall dimensions', group: 'View', icon: 'i-lucide-ruler-dimension-line', keys: ['shift+d'], run: () => (store.showDims = !store.showDims) },
   { id: 'labels', label: 'Toggle room labels', group: 'View', icon: 'i-lucide-tag', keys: ['l'], run: () => (store.showLabels = !store.showLabels) },

@@ -1,11 +1,66 @@
 // Thin typed wrappers over the Neutralino APIs the app uses.
 import { init, app, os, filesystem, events } from '@neutralinojs/lib'
 
-/** True when running inside the Neutralino shell (false in a plain browser tab). */
-export const isNeutralino = typeof (window as any).NL_PORT !== 'undefined'
+function getToken(): string {
+  try {
+    return (
+      (typeof window !== 'undefined' ? (window as any).NL_TOKEN : '') ||
+      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('NL_TOKEN') : '') ||
+      ''
+    )
+  } catch {
+    return ''
+  }
+}
+
+function hasValidToken(): boolean {
+  const token = getToken()
+  return typeof token === 'string' && token.includes('.')
+}
+
+// In development with Vite, if NL_TOKEN was consumed or cleared (e.g. after reload),
+// recover it synchronously from Vite's served .tmp/auth_info.json so init() can connect.
+function ensureDevAuth(): void {
+  if (typeof window === 'undefined' || !import.meta.env.DEV) return
+  if (hasValidToken()) return
+  try {
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', '/.tmp/auth_info.json', false)
+    xhr.send(null)
+    if (xhr.status === 200) {
+      const auth = JSON.parse(xhr.responseText)
+      if (auth.nlToken) {
+        ;(window as any).NL_TOKEN = auth.nlToken
+        if (typeof (window as any).NL_PORT === 'undefined' && auth.nlPort) {
+          ;(window as any).NL_PORT = auth.nlPort
+        }
+        try {
+          sessionStorage.setItem('NL_TOKEN', auth.nlToken)
+        } catch {}
+      }
+    }
+  } catch {
+    // Plain browser or non-dev environment without auth file
+  }
+}
+
+ensureDevAuth()
+
+/** True when running inside the Neutralino shell with a valid auth token (false in a plain browser tab). */
+export const isNeutralino =
+  typeof window !== 'undefined' &&
+  typeof (window as any).NL_PORT !== 'undefined' &&
+  (Boolean((window as any).NL_GINJECTED) || hasValidToken())
 
 export function initNeutralino() {
-  if (isNeutralino) init()
+  ensureDevAuth()
+  if (isNeutralino) {
+    try {
+      init()
+    } catch (err) {
+      console.warn('Failed to initialize Neutralino:', err)
+    }
+  }
 }
 
 export async function dataDir(): Promise<string> {
@@ -38,12 +93,24 @@ export const openDialog = (title: string, filters: { name: string; extensions: s
 
 /** Run `handler` before the window closes, then exit. */
 export function onWindowClose(handler: () => Promise<void> | void) {
-  if (!isNeutralino) return
+  if (typeof window === 'undefined') return
   events.on('windowClose', async () => {
     try {
-      await handler()
+      await Promise.race([
+        Promise.resolve().then(() => handler()),
+        new Promise(resolve => setTimeout(resolve, 2500)),
+      ])
+    } catch (err) {
+      console.error('Error in windowClose handler:', err)
     } finally {
-      app.exit()
+      try {
+        await Promise.race([
+          app.exit(),
+          new Promise(resolve => setTimeout(resolve, 1500)),
+        ])
+      } catch (err) {
+        console.error('Failed to exit application via app.exit():', err)
+      }
     }
   })
 }

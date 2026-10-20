@@ -9,6 +9,18 @@ import { format } from '@/editor/units'
 
 const query = ref('')
 const category = ref<Category | 'all'>('all')
+const categoryOptions = computed(() => [
+  { value: 'all', label: `All categories (${CATALOG.length})`, icon: 'i-lucide-layout-grid' },
+  ...CATEGORIES.map(c => ({
+    value: c.id,
+    label: `${c.label} (${CATALOG.filter(i => i.category === c.id).length})`,
+    icon: c.icon
+  }))
+])
+const selectedCategoryIcon = computed(
+  () => categoryOptions.value.find(c => c.value === category.value)?.icon ?? 'i-lucide-layout-grid'
+)
+
 const list = computed(() => search(query.value, category.value === 'all' ? CATALOG : CATALOG.filter(i => i.category === category.value)))
 const favs = computed(() => store.settings.favourites.map(catalogItem).filter((i): i is CatalogItem => !!i))
 const recent = computed(() => store.settings.recent.map(catalogItem).filter((i): i is CatalogItem => !!i))
@@ -49,29 +61,30 @@ function toggleFav(item: CatalogItem) {
   saveSettings({ favourites: f.includes(item.id) ? f.filter(id => id !== item.id) : [...f, item.id] })
 }
 const dims = (i: CatalogItem) => `${format(i.size[0], store.settings.units)} × ${format(i.size[1], store.settings.units)}`
+
+function closeCatalog() {
+  store.catalogOpen = false
+  if (store.tool === 'item') setTool('select')
+}
 </script>
 
 <template>
   <aside class="w-64 shrink-0 flex flex-col border-r border-default bg-default min-h-0" aria-label="Furniture catalog">
     <header class="flex items-center justify-between px-3 h-11 border-b border-default">
       <h2 class="font-semibold text-highlighted">Furniture</h2>
-      <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" aria-label="Close catalog" @click="store.catalogOpen = false" />
+      <UButton icon="i-lucide-x" color="neutral" variant="ghost" size="sm" aria-label="Close catalog" @click="closeCatalog" />
     </header>
     <div class="p-2 flex flex-col gap-2 border-b border-default">
       <UInput v-model="query" icon="i-lucide-search" placeholder="Search sofa, bed, tree…" size="sm" aria-label="Search catalog" />
-      <div class="flex flex-wrap gap-1">
-        <UButton size="xs" :variant="category === 'all' ? 'soft' : 'ghost'" :color="category === 'all' ? 'primary' : 'neutral'" label="All" @click="category = 'all'" />
-        <UButton
-          v-for="c in CATEGORIES"
-          :key="c.id"
-          size="xs"
-          :icon="c.icon"
-          :variant="category === c.id ? 'soft' : 'ghost'"
-          :color="category === c.id ? 'primary' : 'neutral'"
-          :label="c.label"
-          @click="category = c.id"
-        />
-      </div>
+      <USelect
+        :model-value="category"
+        :items="categoryOptions"
+        :icon="selectedCategoryIcon"
+        size="sm"
+        class="w-full"
+        aria-label="Filter category"
+        @update:model-value="(v: unknown) => (category = v as Category | 'all')"
+      />
     </div>
 
     <div class="flex-1 overflow-y-auto p-2 flex flex-col gap-3">

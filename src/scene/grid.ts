@@ -4,7 +4,7 @@
 import * as THREE from 'three'
 
 const EXTENT = 200
-const COLORS = { light: [0xd4d4d8, 0xa1a1aa, 0x71717a], dark: [0x323238, 0x52525b, 0x71717a] }
+const COLORS = { light: [0xe4e4e7, 0xd4d4d8, 0xa1a1aa], dark: [0x2a2a2f, 0x3f3f46, 0x52525b] }
 
 const vertexShader = /* glsl */ `
   varying vec2 vPlan;
@@ -28,7 +28,7 @@ const fragmentShader = /* glsl */ `
     float a0 = level(0.1), a1 = level(1.0), a2 = level(10.0);
     float a = max(a0, max(a1, a2));
     if (a <= 0.0) discard;
-    gl_FragColor = vec4(mix(mix(colors[0], colors[1], a1), colors[2], a2), a);
+    gl_FragColor = vec4(mix(mix(colors[0], colors[1], a1), colors[2], a2), a * 0.6);
   }`
 
 export function createGrid() {

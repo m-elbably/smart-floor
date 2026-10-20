@@ -52,7 +52,7 @@ export function buildRoom(room: Room, floor: Floor, label: { title: string; sub:
   slab.receiveShadow = true
   g.add(slab)
 
-  if (room.ceiling) {
+  if (room.ceiling && room.kind !== 'outdoor') {
     const ceil = new THREE.Mesh(
       new THREE.ShapeGeometry(shape(room.polygon, holes)).rotateX(-Math.PI / 2),
       mat('ceiling', () => new THREE.MeshStandardMaterial({ color: '#fafafa', side: THREE.DoubleSide }))

@@ -118,16 +118,18 @@ export interface DerivedWall {
 interface RoomLike {
   id: string
   polygon: Vec2[] // CCW
+  kind?: string // 'outdoor' edges carry no wall of their own
 }
 
 /**
  * Walls from room edges. Collinear overlapping edges are merged: the overlap becomes one interior wall
  * centred on the line (shared by both rooms); the rest are exterior walls pushed outward so the room
  * polygon stays the inner face. Exterior walls are extended by their thickness at convex corners so
- * corners close. Tolerance 1 mm.
+ * corners close. Outdoor rooms add no walls: an edge shared with an indoor room is that room's exterior
+ * wall. Tolerance 1 mm.
  */
 export function deriveWalls(rooms: RoomLike[], interior: number, exterior: number): DerivedWall[] {
-  type E = { a: Vec2; b: Vec2; host: WallHost; convexA: boolean; convexB: boolean }
+  type E = { a: Vec2; b: Vec2; host: WallHost; open: boolean; convexA: boolean; convexB: boolean }
   const all: E[] = []
   for (const r of rooms) {
     const n = r.polygon.length
@@ -137,7 +139,7 @@ export function deriveWalls(rooms: RoomLike[], interior: number, exterior: numbe
       return cross(sub(r.polygon[i], prev), sub(next, r.polygon[i])) > 0
     }
     edges(r.polygon).forEach(([a, b], i) => {
-      if (dist(a, b) > EPS) all.push({ a, b, host: { roomId: r.id, edge: i }, convexA: convex(i), convexB: convex((i + 1) % n) })
+      if (dist(a, b) > EPS) all.push({ a, b, host: { roomId: r.id, edge: i }, open: r.kind === 'outdoor', convexA: convex(i), convexB: convex((i + 1) % n) })
     })
   }
 
@@ -165,19 +167,22 @@ export function deriveWalls(rooms: RoomLike[], interior: number, exterior: numbe
       if (!run) return
       const { lo, hi, cover } = run
       const p = (t: number) => add(g.origin, scale(g.dir, t))
-      const hosts = cover.map(c => c.e.host)
-      if (cover.length > 1) {
+      const solid = cover.filter(c => !c.e.open)
+      const hosts = [...solid, ...cover.filter(c => c.e.open)].map(c => c.e.host)
+      if (!solid.length) {
+        // open edge: no wall
+      } else if (solid.length > 1) {
         out.push({ a: p(lo), b: p(hi), thickness: interior, exterior: false, hosts, extended: 0 })
       } else {
-        const e = cover[0].e
+        const e = solid[0].e
         const forward = at(e.b) > at(e.a)
         const shift = scale(rightNormal(sub(e.b, e.a)), exterior / 2)
         // Extend only where this piece ends at a convex polygon corner of its edge.
-        const atA = Math.abs(lo - cover[0].lo) < EPS
-        const atB = Math.abs(hi - cover[0].hi) < EPS
+        const atA = Math.abs(lo - solid[0].lo) < EPS
+        const atB = Math.abs(hi - solid[0].hi) < EPS
         const [convexLo, convexHi] = forward ? [e.convexA, e.convexB] : [e.convexB, e.convexA]
         // …unless another edge on this line continues from there (side-by-side rooms): then it's not a corner.
-        const continues = (t: number) => spans.some(s => s.e !== e && s.lo <= t + EPS && s.hi >= t - EPS)
+        const continues = (t: number) => spans.some(s => s.e !== e && !s.e.open && s.lo <= t + EPS && s.hi >= t - EPS)
         const extLo = atA && convexLo && !continues(lo)
         const extHi = atB && convexHi && !continues(hi)
         const lo2 = lo - (extLo ? exterior : 0)

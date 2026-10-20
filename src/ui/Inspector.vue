@@ -10,6 +10,7 @@ import { warningText } from '@/editor/tools/shapes'
 import { format, formatArea } from '@/editor/units'
 import { FLOOR_MATERIALS, ROOM_KINDS, DOOR_PRESETS, WINDOW_PRESETS, ZONE_KINDS, POOL_DEPTH } from '@/editor/presets'
 import { deleteSelection } from '@/editor/clipboard'
+import { rotateSelection, getSelectedEntities } from '@/editor/rotate'
 import type { Item, Opening, Room, Stair, StairParams, Wall } from '@/types'
 import { catalogItem } from '@/catalog'
 import LengthInput from './LengthInput.vue'
@@ -110,15 +111,29 @@ const title = computed(() => {
 const u = () => store.settings.units
 const kindItems = ROOM_KINDS.map(k => ({ value: k as string, label: k[0].toUpperCase() + k.slice(1) }))
 const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ value, label: m.label }))
+const canRotate = computed(() => {
+  const { rooms, walls, items, stairs, zones, openings } = getSelectedEntities()
+  return rooms.length + walls.length + items.length + stairs.length + zones.length > 0 || openings.some(o => o.kind === 'door')
+})
 </script>
 
 <template>
   <aside v-if="sel.length" class="w-72 shrink-0 border-l border-default bg-default overflow-y-auto" aria-label="Inspector">
     <header class="flex items-center justify-between px-4 h-11 border-b border-default">
       <h2 class="font-semibold text-highlighted">{{ title }}</h2>
-      <UTooltip text="Delete" :kbds="['delete']">
-        <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="Delete selection" @click="deleteSelection()" />
-      </UTooltip>
+      <div class="flex items-center gap-0.5">
+        <template v-if="canRotate">
+          <UTooltip text="Rotate 90° CCW" :kbds="['shift', 'r']">
+            <UButton icon="i-lucide-rotate-ccw" color="neutral" variant="ghost" size="sm" aria-label="Rotate counter-clockwise" @click="rotateSelection(-90)" />
+          </UTooltip>
+          <UTooltip text="Rotate 90° CW" :kbds="['r']">
+            <UButton icon="i-lucide-rotate-cw" color="neutral" variant="ghost" size="sm" aria-label="Rotate clockwise" @click="rotateSelection(90)" />
+          </UTooltip>
+        </template>
+        <UTooltip text="Delete" :kbds="['delete']">
+          <UButton icon="i-lucide-trash-2" color="error" variant="ghost" size="sm" aria-label="Delete selection" @click="deleteSelection()" />
+        </UTooltip>
+      </div>
     </header>
 
     <div class="p-4 flex flex-col gap-4">
@@ -143,6 +158,14 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
           />
         </UFormField>
         <USwitch :model-value="common(rooms, 'ceiling') ?? true" label="Ceiling (shown in walk mode)" @update:model-value="(v: boolean) => set('ceiling', v)" />
+        <UFormField label="Rotate">
+          <div class="grid grid-cols-4 gap-1.5 w-full">
+            <UButton size="xs" variant="soft" color="neutral" label="-90°" block @click="rotateSelection(-90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+90°" block @click="rotateSelection(90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+45°" block @click="rotateSelection(45)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+15°" block @click="rotateSelection(15)" />
+          </div>
+        </UFormField>
         <dl class="grid grid-cols-2 gap-y-1 text-sm pt-2 border-t border-default">
           <dt class="text-muted">Area</dt>
           <dd class="text-right tabular-nums">{{ formatArea(rooms.reduce((s, r) => s + area(r.polygon), 0), u()) }}</dd>
@@ -153,6 +176,17 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
             <dd class="text-right tabular-nums">{{ room.polygon.length }}</dd>
           </template>
         </dl>
+        <UButton
+          v-if="room"
+          icon="i-lucide-bookmark-plus"
+          label="Save as template…"
+          color="primary"
+          variant="soft"
+          block
+          size="sm"
+          class="mt-1"
+          @click="store.ui.saveTemplate = true"
+        />
       </template>
 
       <!-- Doors & windows -->
@@ -213,6 +247,14 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
             <LengthInput :model-value="walls[0].height" :min="0.2" :max="8" @update:model-value="v => set('height', v)" />
           </UFormField>
         </div>
+        <UFormField label="Rotate">
+          <div class="grid grid-cols-4 gap-1.5 w-full">
+            <UButton size="xs" variant="soft" color="neutral" label="-45°" block @click="rotateSelection(-45)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+45°" block @click="rotateSelection(45)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+90°" block @click="rotateSelection(90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+15°" block @click="rotateSelection(15)" />
+          </div>
+        </UFormField>
         <p v-if="wall" class="text-sm text-muted">Length {{ format(dist(wall.a, wall.b), u()) }}</p>
       </template>
 
@@ -258,6 +300,12 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
             />
           </UFormField>
         </div>
+        <div class="grid grid-cols-4 gap-1.5 w-full">
+          <UButton size="xs" variant="soft" color="neutral" label="-90°" block @click="rotateSelection(-90)" />
+          <UButton size="xs" variant="soft" color="neutral" label="+90°" block @click="rotateSelection(90)" />
+          <UButton size="xs" variant="soft" color="neutral" label="+45°" block @click="rotateSelection(45)" />
+          <UButton size="xs" variant="soft" color="neutral" label="+15°" block @click="rotateSelection(15)" />
+        </div>
         <dl v-if="itemDef && item" class="grid grid-cols-2 gap-y-1 text-sm pt-2 border-t border-default">
           <dt class="text-muted">Size</dt>
           <dd class="text-right tabular-nums">
@@ -281,6 +329,14 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
             :max="4"
             @update:model-value="v => execute(batch('Pool depth', zones.map(z => updateEntity('zones', z.id, { props: { ...z.props, depth: v } }))))"
           />
+        </UFormField>
+        <UFormField label="Rotate">
+          <div class="grid grid-cols-4 gap-1.5 w-full">
+            <UButton size="xs" variant="soft" color="neutral" label="-90°" block @click="rotateSelection(-90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+90°" block @click="rotateSelection(90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+45°" block @click="rotateSelection(45)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+15°" block @click="rotateSelection(15)" />
+          </div>
         </UFormField>
         <dl class="grid grid-cols-2 gap-y-1 text-sm pt-2 border-t border-default">
           <dt class="text-muted">Area</dt>
@@ -313,6 +369,12 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
             />
           </UFormField>
         </div>
+        <div class="grid grid-cols-4 gap-1.5 w-full">
+          <UButton size="xs" variant="soft" color="neutral" label="-90°" block @click="rotateSelection(-90)" />
+          <UButton size="xs" variant="soft" color="neutral" label="+90°" block @click="rotateSelection(90)" />
+          <UButton size="xs" variant="soft" color="neutral" label="+45°" block @click="rotateSelection(45)" />
+          <UButton size="xs" variant="soft" color="neutral" label="+15°" block @click="rotateSelection(15)" />
+        </div>
         <USwitch v-if="common(stairs, 'kind') !== 'spiral'" :model-value="stairs[0].params.railLeft" label="Railing left" @update:model-value="(v: boolean) => setStair({}, { railLeft: v })" />
         <USwitch :model-value="stairs[0].params.railRight" :label="common(stairs, 'kind') === 'spiral' ? 'Railing (outer)' : 'Railing right'" @update:model-value="(v: boolean) => setStair({}, { railRight: v })" />
         <template v-if="stair">
@@ -333,7 +395,17 @@ const materialItems = Object.entries(FLOOR_MATERIALS).map(([value, m]) => ({ val
         </template>
       </template>
 
-      <p v-else class="text-sm text-muted">Mixed selection. Select items of one kind to edit their properties.</p>
+      <div v-else class="space-y-3">
+        <p class="text-sm text-muted">Mixed selection. Select items of one kind to edit their properties.</p>
+        <UFormField v-if="canRotate" label="Rotate selection">
+          <div class="grid grid-cols-4 gap-1.5 w-full">
+            <UButton size="xs" variant="soft" color="neutral" label="-90°" block @click="rotateSelection(-90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+90°" block @click="rotateSelection(90)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+45°" block @click="rotateSelection(45)" />
+            <UButton size="xs" variant="soft" color="neutral" label="+15°" block @click="rotateSelection(15)" />
+          </div>
+        </UFormField>
+      </div>
     </div>
   </aside>
 </template>

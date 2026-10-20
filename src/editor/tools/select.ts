@@ -10,16 +10,39 @@ import { refitOpenings, openingPoint, stairRise } from '../model'
 import { solve, toPlan } from '../stairs'
 import { format } from '../units'
 import { registerTool, type PlanEvent } from './index'
-import { placeOpening } from './opening'
+import { placeOpening, openingDistanceGuides, type Placement } from './opening'
+import { catalogItem } from '@/catalog'
+import {
+  getSelectionBbox,
+  getSelectionOrigin,
+  getSelectedEntities,
+  rotateSelectionCmd,
+  rotateSelection,
+  previewRotate,
+  rotatePoint
+} from '../rotate'
 
 type Drag =
   | { type: 'move'; start: Vec2; rooms: Room[]; walls: Wall[]; stairs: Stair[]; zones: Zone[]; items: Item[]; delta: Vec2 }
   | { type: 'vertex'; room: Shaped; index: number }
   | { type: 'edge'; room: Shaped; index: number; start: Vec2 }
-  | { type: 'opening'; orig: Opening }
+  | { type: 'opening'; orig: Opening; currentAt?: Placement; cur?: Vec2 }
   | { type: 'box'; start: Vec2; end: Vec2; screenBox: boolean }
+  | {
+      type: 'rotate'
+      origin: Vec2
+      startAngle: number
+      lastAngle: number
+      accumulatedRad: number
+      currentDeg: number
+      baseRotation?: number
+      startHandlePos: Vec2
+      startTopCenter: Vec2
+      prevSnapshot: Map<string, Record<string, unknown>>
+    }
 
 let drag: Drag | null = null
+let lastPpm = 50
 /** What was under the pointer on 'down'. A click decides on this, not on a re-pick at 'up': selecting opens
  *  the inspector, the viewport narrows, and the object may no longer be under the cursor by then. */
 let downHit: PlanEvent['hit'] = null
@@ -48,6 +71,47 @@ function handleAt(p: Vec2, ppm: number) {
   const ei = edges(room.polygon).findIndex(([a, b]) => segDistance(p, a, b) < 6 / ppm)
   if (ei >= 0) return { room, edge: ei }
   return null
+}
+
+interface RotateHandleInfo {
+  pos: Vec2
+  topCenter: Vec2
+}
+
+function rotateHandleInfo(ppm: number): RotateHandleInfo | null {
+  if (!store.selection.length) return null
+  const { rooms, walls, items, stairs, zones } = getSelectedEntities()
+  const total = rooms.length + walls.length + items.length + stairs.length + zones.length
+  if (total === 0) return null
+
+  const distAbove = Math.max(0.45, 24 / ppm)
+
+  // Single item: place handle above the item's oriented front/top
+  if (total === 1 && items.length === 1) {
+    const it = items[0]
+    const def = catalogItem(it.catalogId)
+    const s = it.scale[0] || 1
+    const d = def ? def.size[1] * s : 0.6
+    const halfD = d / 2
+    const topCenter = rotatePoint([it.x, it.y + halfD], [it.x, it.y], it.rotation)
+    const pos = rotatePoint([it.x, it.y + halfD + distAbove], [it.x, it.y], it.rotation)
+    return { pos, topCenter }
+  }
+
+  // Single stair: place handle along its run
+  if (total === 1 && stairs.length === 1) {
+    const st = stairs[0]
+    const topCenter = rotatePoint([st.x, st.y + 0.8], [st.x, st.y], st.rotation)
+    const pos = rotatePoint([st.x, st.y + 0.8 + distAbove], [st.x, st.y], st.rotation)
+    return { pos, topCenter }
+  }
+
+  // Single wall, room, zone, or multi-selection: place above the bounding box
+  const box = getSelectionBbox()
+  if (!box) return null
+  const cx = (box.min[0] + box.max[0]) / 2
+  const top = box.max[1]
+  return { pos: [cx, top + distAbove], topCenter: [cx, top] }
 }
 
 /** Polygon change + its openings refit (moved along, re-hosted, or removed) as one command. */
@@ -91,6 +155,7 @@ function cancelDrag() {
     for (const it of drag.items) preview('items', it.id, { x: it.x, y: it.y })
   } else if (drag.type === 'vertex' || drag.type === 'edge') preview(drag.room.t, drag.room.id, { polygon: drag.room.polygon })
   else if (drag.type === 'opening') preview('openings', drag.orig.id, { host: drag.orig.host, along: drag.orig.along })
+  else if (drag.type === 'rotate') previewRotate(0, drag.origin, drag.prevSnapshot)
   drag = null
 }
 
@@ -117,8 +182,46 @@ registerTool({
   snaps: () => drag?.type === 'vertex',
   snapSkip: () => (drag?.type === 'vertex' ? { roomId: drag.room.id, vertex: drag.index } : undefined),
   down(e) {
+    lastPpm = e.ppm
     downHit = e.hit
-    // Priority: corner handle > door/window > wall handle > whatever is under the cursor.
+
+    // Priority: rotation handle > corner handle > door/window > wall handle > whatever is under the cursor.
+    const rotInfo = rotateHandleInfo(e.ppm)
+    if (rotInfo && dist(e.raw, rotInfo.pos) < 14 / e.ppm) {
+      const origin = getSelectionOrigin()
+      if (origin) {
+        const startAngle = Math.atan2(e.raw[1] - origin[1], e.raw[0] - origin[0])
+        const prevSnapshot = new Map<string, Record<string, unknown>>()
+        const { rooms, walls, items, stairs, zones } = getSelectedEntities()
+        for (const r of rooms) prevSnapshot.set(r.id, { polygon: clone(r.polygon) })
+        for (const z of zones) prevSnapshot.set(z.id, { polygon: clone(z.polygon) })
+        for (const w of walls) prevSnapshot.set(w.id, { a: clone(w.a), b: clone(w.b) })
+        for (const it of items) prevSnapshot.set(it.id, { x: it.x, y: it.y, rotation: it.rotation })
+        for (const s of stairs) prevSnapshot.set(s.id, { x: s.x, y: s.y, rotation: s.rotation })
+
+        let baseRotation: number | undefined
+        const total = rooms.length + walls.length + items.length + stairs.length + zones.length
+        if (total === 1) {
+          if (items.length === 1) baseRotation = items[0].rotation
+          else if (stairs.length === 1) baseRotation = stairs[0].rotation
+        }
+
+        drag = {
+          type: 'rotate',
+          origin,
+          startAngle,
+          lastAngle: startAngle,
+          accumulatedRad: 0,
+          currentDeg: 0,
+          baseRotation,
+          startHandlePos: rotInfo.pos,
+          startTopCenter: rotInfo.topCenter,
+          prevSnapshot
+        }
+        return true
+      }
+    }
+
     const h = handleAt(e.raw, e.ppm)
     if (h && 'vertex' in h) return (drag = { type: 'vertex', room: clone(h.room), index: h.vertex! }), true
     if (h && 'edge' in h && e.hit?.kind !== 'opening') return (drag = { type: 'edge', room: clone(h.room), index: h.edge!, start: e.raw }), true
@@ -146,9 +249,29 @@ registerTool({
     return false // 3D: let the orbit rotate; a plain click clears the selection on 'up'
   },
   move(e) {
+    lastPpm = e.ppm
     if (!drag) return
     if (drag.type === 'box') drag.end = e.raw
-    else if (drag.type === 'move') {
+    else if (drag.type === 'rotate') {
+      const curAngle = Math.atan2(e.raw[1] - drag.origin[1], e.raw[0] - drag.origin[0])
+      let diff = curAngle - drag.lastAngle
+      while (diff > Math.PI) diff -= 2 * Math.PI
+      while (diff < -Math.PI) diff += 2 * Math.PI
+      drag.accumulatedRad += diff
+      drag.lastAngle = curAngle
+
+      let deg = (drag.accumulatedRad * 180) / Math.PI
+      if (!e.alt) {
+        if (drag.baseRotation !== undefined) {
+          const target = Math.round((drag.baseRotation + deg) / 15) * 15
+          deg = target - drag.baseRotation
+        } else {
+          deg = Math.round(deg / 15) * 15
+        }
+      }
+      drag.currentDeg = deg
+      previewRotate(deg, drag.origin, drag.prevSnapshot)
+    } else if (drag.type === 'move') {
       const d = (drag.delta = snapDelta(sub(e.raw, drag.start), e.alt))
       for (const r of drag.rooms) preview('rooms', r.id, { polygon: r.polygon.map(p => add(p, d)) })
       for (const w of drag.walls) preview('walls', w.id, { a: add(w.a, d), b: add(w.b, d) })
@@ -171,6 +294,8 @@ registerTool({
       preview(drag.room.t, drag.room.id, { polygon: poly })
     } else if (drag.type === 'opening') {
       const at = placeOpening(e.raw, drag.orig.width, e.ppm, !e.alt, drag.orig.id, drag.orig.host)
+      drag.cur = e.raw
+      drag.currentAt = at ?? undefined
       if (at?.valid) preview('openings', drag.orig.id, { host: at.host, along: at.along })
     }
   },
@@ -178,7 +303,7 @@ registerTool({
     const d = drag
     drag = null
     if (!e.moved) {
-      if (d && d.type !== 'box' && d.type !== 'move' && d.type !== 'opening') return // click on a handle
+      if (d && d.type !== 'box' && d.type !== 'move' && d.type !== 'opening' && d.type !== 'rotate') return // click on a handle
       const hit = downHit ?? (d ? null : e.hit) // no 'down' seen (3D orbit click): fall back to a pick now
       downHit = null
       if (!hit) {
@@ -195,6 +320,13 @@ registerTool({
       const d2 = store.data!
       const ids = [...d2.rooms, ...d2.walls, ...d2.openings, ...d2.stairs, ...d2.zones, ...d2.items].filter(x => x.floorId === store.activeFloorId && inBox(x.id, min, max)).map(x => x.id)
       store.selection = e.shift ? [...new Set([...store.selection, ...ids])] : ids
+    } else if (d.type === 'rotate') {
+      if (d.currentDeg !== 0) {
+        const cmd = rotateSelectionCmd(d.currentDeg, d.origin, d.prevSnapshot)
+        if (cmd) execute(cmd)
+      } else {
+        previewRotate(0, d.origin, d.prevSnapshot)
+      }
     } else if (d.type === 'move') {
       if (!d.delta[0] && !d.delta[1]) return
       const cmds = [
@@ -237,10 +369,9 @@ registerTool({
   key(e) {
     if (e.key === 'Escape' && drag) return cancelDrag(), true
     if (drag || e.ctrlKey || e.metaKey || e.altKey) return false
-    const items = store.data!.items.filter(i => store.selection.includes(i.id))
-    if (e.key.toLowerCase() === 'r' && items.length) {
+    if (e.key.toLowerCase() === 'r' && store.selection.length) {
       const step = e.shiftKey ? -15 : 15
-      execute(batch('Rotate', items.map(it => updateEntity('items', it.id, { rotation: (((it.rotation + step) % 360) + 360) % 360 }))))
+      rotateSelection(step)
       return true
     }
     const arrows: Record<string, Vec2> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }
@@ -256,6 +387,35 @@ registerTool({
     const shapes: Shape[] = []
     const room = selectedRoom()
     if (room) shapes.push({ kind: 'dots', points: room.polygon, color: COLORS.primary, size: 9 })
+
+    const rotInfo = rotateHandleInfo(lastPpm)
+    if (rotInfo && store.selection.length && store.view === '2d' && !drag) {
+      shapes.push(
+        { kind: 'line', points: [rotInfo.topCenter, rotInfo.pos], color: COLORS.primary, width: 1, dashed: true },
+        { kind: 'dots', points: [rotInfo.pos], color: COLORS.primary, size: 9 }
+      )
+    }
+
+    if (drag?.type === 'rotate') {
+      const o = drag.origin
+      const curTop = rotatePoint(drag.startTopCenter, o, drag.currentDeg)
+      const curH = rotatePoint(drag.startHandlePos, o, drag.currentDeg)
+      const displayAngle =
+        drag.baseRotation !== undefined
+          ? Math.round((((drag.baseRotation + drag.currentDeg) % 360) + 360) % 360)
+          : Math.round(drag.currentDeg)
+      shapes.push(
+        { kind: 'line', points: [curTop, curH], color: COLORS.guide, width: 1.5, dashed: true },
+        { kind: 'line', points: [o, curTop], color: COLORS.guide, width: 1, dashed: true },
+        { kind: 'dots', points: [o, curH], color: COLORS.guide, size: 8 },
+        { kind: 'label', at: curH, text: `${displayAngle}°` }
+      )
+    }
+
+    if (drag?.type === 'opening' && drag.currentAt?.valid) {
+      shapes.push(...openingDistanceGuides(drag.currentAt.host, drag.currentAt.along, drag.orig.width, drag.cur))
+    }
+
     if (drag?.type === 'box') {
       const [a, b] = [drag.start, drag.end]
       const poly: Vec2[] = [a, [b[0], a[1]], b, [a[0], b[1]]]
@@ -275,7 +435,7 @@ registerTool({
     return shapes
   },
   hint: () =>
-    selectedRoom()
-      ? 'Drag corners or walls to reshape · double-click a wall to add a corner, a corner to remove it · Alt = no snapping'
+    store.selection.length
+      ? 'Drag to move · R / Shift+R rotates 15° · drag top handle to rotate · Delete removes'
       : 'Click to select · Shift adds · drag empty space to box-select · drag to move'
 })

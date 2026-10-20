@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { store } from '@/editor/store'
-import { TEMPLATES, DOOR_PRESETS, WINDOW_PRESETS, ZONE_KINDS } from '@/editor/presets'
+import { DOOR_PRESETS, WINDOW_PRESETS, ZONE_KINDS } from '@/editor/presets'
+import { getTemplate } from '@/editor/templates'
 import { cancelTool } from '@/editor/tools'
+
+const currentTemplate = computed(() => getTemplate(store.toolOptions.template))
 
 const opts = computed(() => {
   const t = store.tool
-  if (t === 'template') return { key: 'template' as const, items: Object.entries(TEMPLATES).map(([value, p]) => ({ value, label: p.label, icon: p.icon })) }
   if (t === 'door') return { key: 'door' as const, items: Object.entries(DOOR_PRESETS).map(([value, p]) => ({ value, label: p.label })) }
   if (t === 'zone') return { key: 'zone' as const, items: Object.entries(ZONE_KINDS).map(([value, z]) => ({ value, label: z.label, icon: z.icon })) }
   if (t === 'wall')
@@ -33,8 +35,21 @@ const opts = computed(() => {
 </script>
 
 <template>
+  <div v-if="store.tool === 'template'" class="flex items-center gap-1.5">
+    <UButton
+      :icon="currentTemplate.icon || 'i-lucide-stamp'"
+      :label="currentTemplate.label"
+      trailing-icon="i-lucide-layout-grid"
+      color="neutral"
+      variant="outline"
+      size="sm"
+      class="bg-default/90 backdrop-blur shadow-sm max-w-60 truncate font-medium"
+      aria-label="Room templates"
+      @click="store.ui.templates = true"
+    />
+  </div>
   <USelect
-    v-if="opts"
+    v-else-if="opts"
     :model-value="store.toolOptions[opts.key]"
     :items="opts.items"
     class="w-56"

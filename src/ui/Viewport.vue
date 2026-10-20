@@ -18,6 +18,7 @@ import '@/editor/tools/measure'
 import { handleKey } from '@/editor/shortcuts'
 
 const el = ref<HTMLElement>()
+const noWebGL = ref(false)
 let vp: Viewport | null = null
 let detach: (() => void)[] = []
 defineExpose({
@@ -49,7 +50,14 @@ function onKeyDown(e: KeyboardEvent) {
 const onKeyUp = (e: KeyboardEvent) => e.code === 'Space' && vp?.setSpace(false)
 
 onMounted(() => {
-  const v = (vp = createViewport(el.value!, onPointer))
+  try {
+    vp = createViewport(el.value!, onPointer)
+  } catch (e) {
+    console.error(e) // no WebGL (e.g. GPU acceleration off in the system webview): say so instead of a blank editor
+    noWebGL.value = true
+    return
+  }
+  const v = vp
   const overlay = createOverlay(v)
   detach = [attachScene(v), attachTools(v, overlay), attachGizmo(v), attachWalk(v)]
   setThumbnailer(() => v.thumbnail())
@@ -59,6 +67,7 @@ onMounted(() => {
   // Walking shows the whole building (the floor above is your ceiling, the stairwell shows the one below).
   watchEffect(() => v.setFloors(store.data?.floors ?? [], store.activeFloorId, store.view === 'walk' ? 'all' : store.floorVisibility))
   watch(() => store.view, view => v.setView(view), { immediate: true })
+  watch(() => store.ui.fit, () => v.fit())
   watch(() => store.dark, d => v.setTheme(d), { immediate: true })
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -91,5 +100,12 @@ onBeforeUnmount(() => {
     :class="store.tool !== 'select' && 'cursor-crosshair'"
     role="application"
     aria-label="Floor plan editor. Press question mark for keyboard shortcuts, Control K for all actions."
-  />
+  >
+    <div v-if="noWebGL" class="absolute inset-0 grid place-items-center p-8 text-center">
+      <div class="max-w-md space-y-2">
+        <p class="font-medium">3D graphics are not available</p>
+        <p class="text-sm text-muted">Smart Floor needs WebGL. Enable hardware acceleration for your system's web view, or update your graphics drivers, then restart the app.</p>
+      </div>
+    </div>
+  </div>
 </template>
