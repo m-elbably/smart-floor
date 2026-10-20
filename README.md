@@ -96,7 +96,13 @@ npm run check        # type check + every src/**/*.check.ts self-check
 npm run build        # vite build + neu build --release
 ```
 
-The result is `release/smart-floor-release.zip`, which holds the binaries for every platform next to `resources.neu`. Push a `v*` tag and the [release workflow](.github/workflows/release.yml) builds the archive and attaches it to a GitHub release.
+The result is `release/smart-floor-release.zip`, which holds the binaries for every platform next to `resources.neu`. To publish a release, run this from a clean `main`:
+
+```bash
+npm run release -- patch   # or minor, major, or an exact version like 1.2.0
+```
+
+It runs the checks, bumps the version in `package.json` and `neutralino.config.json`, commits, tags `vX.Y.Z` and pushes. The tag starts the [release workflow](.github/workflows/release.yml), which builds the archive and attaches it to a GitHub release.
 
 ### How it is built
 

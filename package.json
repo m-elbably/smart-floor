@@ -11,7 +11,10 @@
     "dev": "neu run",
     "vite": "vite",
     "build": "node scripts/check-index.mjs && vite build && neu build --release",
-    "check": "vue-tsc --noEmit && node scripts/check.mjs"
+    "check": "vue-tsc --noEmit && node scripts/check.mjs",
+    "release": "npm run check && npm version -m \"Release v%s\"",
+    "version": "node scripts/sync-version.mjs && git add neutralino.config.json",
+    "postversion": "git push origin main --follow-tags"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.137",
