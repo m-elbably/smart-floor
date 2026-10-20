@@ -8,9 +8,9 @@
   "type": "module",
   "scripts": {
     "postinstall": "node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm','public/sql-wasm.wasm')\"",
-    "dev": "neu run",
+    "dev": "neu run -- --window-enable-inspector=true",
     "vite": "vite",
-    "build": "node scripts/check-index.mjs && vite build && neu build --release",
+    "build": "node scripts/check-index.mjs && vite build && neu build --embed-resources",
     "check": "vue-tsc --noEmit && node scripts/check.mjs",
     "release": "npm run check && npm version -m \"Release v%s\"",
     "version": "node scripts/sync-version.mjs && git add neutralino.config.json",

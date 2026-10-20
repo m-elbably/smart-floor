@@ -45,16 +45,15 @@ See it in 3D or walk through it in first person. Works offline, and everything s
 
 ## Install
 
-1. Download `smart-floor-release.zip` from the [latest release](../../releases/latest) and unzip it.
-2. Keep the binary for your platform **next to `resources.neu`**:
+1. Download the file for your platform from the [latest release](../../releases/latest). Each one is a single self-contained file:
 
-| Platform | Binary |
+| Platform | File |
 |---|---|
 | Linux x64 / arm64 / armhf | `smart-floor-linux_x64` / `_arm64` / `_armhf` |
 | Windows x64 | `smart-floor-win_x64.exe` |
-| macOS Apple Silicon / Intel | `smart-floor-mac_arm64` / `_x64` (or `_universal`) |
+| macOS (Apple Silicon and Intel) | `smart-floor-mac_universal` |
 
-3. Run it. On Linux, first run `chmod +x smart-floor-linux_x64`. On macOS, the binaries are unsigned, so right-click the binary and choose **Open** the first time.
+2. Run it. On Linux and macOS, first make it executable: `chmod +x smart-floor-linux_x64` (or `smart-floor-mac_universal`). On macOS the binary is unsigned, so the first time, right-click it and choose **Open**.
 
 Smart Floor uses your system's web view: WebView2 on Windows, WebKit on macOS, and WebKitGTK on Linux. On Linux it needs `libwebkit2gtk-4.1-0` (or `-4.0-37`); most desktop distributions already have it. The app needs WebGL, and it tells you if WebGL is unavailable.
 
@@ -93,16 +92,16 @@ npm run check        # type check + every src/**/*.check.ts self-check
 ### Build
 
 ```bash
-npm run build        # vite build + neu build --release
+npm run build        # vite build + neu build --embed-resources
 ```
 
-The result is `release/smart-floor-release.zip`, which holds the binaries for every platform next to `resources.neu`. To publish a release, run this from a clean `main`:
+The result is one self-contained binary per platform in `release/smart-floor/`, with the app's files embedded and, on Windows, the app icon. To publish a release, run this from a clean `main`:
 
 ```bash
 npm run release -- patch   # or minor, major, or an exact version like 1.2.0
 ```
 
-It runs the checks, bumps the version in `package.json` and `neutralino.config.json`, commits, tags `vX.Y.Z` and pushes. The tag starts the [release workflow](.github/workflows/release.yml), which builds the archive and attaches it to a GitHub release.
+It runs the checks, bumps the version in `package.json` and `neutralino.config.json`, commits, tags `vX.Y.Z` and pushes. The tag starts the [release workflow](.github/workflows/release.yml), which builds the binaries and attaches them to a GitHub release.
 
 ### How it is built
 

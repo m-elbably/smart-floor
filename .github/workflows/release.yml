@@ -1,4 +1,4 @@
-# Push a tag like v0.2.0 to build every platform and attach the archive to a GitHub release.
+# Push a tag like v0.2.0 to build every platform and attach one self-contained binary per platform to a GitHub release.
 name: Release
 on:
   push:
@@ -20,6 +20,9 @@ jobs:
       - run: npm run check
       - run: npx neu update
       - run: npm run build
-      - run: gh release create "$GITHUB_REF_NAME" release/smart-floor-release.zip --title "$GITHUB_REF_NAME" --generate-notes
+      # mac_universal covers Intel and Apple Silicon, so the per-arch mac builds are left out
+      - run: |
+          cd release/smart-floor
+          gh release create "$GITHUB_REF_NAME" smart-floor-linux_x64 smart-floor-linux_arm64 smart-floor-linux_armhf smart-floor-mac_universal smart-floor-win_x64.exe --title "$GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

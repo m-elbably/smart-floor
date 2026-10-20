@@ -2,6 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/neutralinojs/neutralinojs/main/schemas/neutralino.config.schema.json",
   "applicationId": "com.greenpvl.smartfloor",
   "version": "1.0.0",
+  "applicationName": "Smart Floor",
+  "author": "Mohamed El-Bably",
+  "description": "Sketch a house in 2D, see it in 3D and walk through it.",
   "defaultMode": "window",
   "port": 0,
   "documentRoot": "/dist/",
@@ -31,7 +34,7 @@
       "minWidth": 1024,
       "minHeight": 640,
       "center": true,
-      "enableInspector": true,
+      "enableInspector": false,
       "exitProcessOnClose": false,
       "icon": "/dist/icon.png"
     }
