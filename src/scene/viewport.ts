@@ -3,7 +3,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
-import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { createGrid } from './grid'
 import type { Vec2 } from '@/types'
 
@@ -477,6 +476,7 @@ export function createViewport(el: HTMLElement, onPointer: PointerHandler) {
       if (o instanceof CSS2DObject || (o as THREE.Line).isLine || (o.layers.mask & skip && !(o.layers.mask & 1))) set(o, false)
     })
     try {
+      const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js') // lazy: export-only code
       const out = await new GLTFExporter().parseAsync(target, { binary: true, onlyVisible: true })
       return new Uint8Array(out as ArrayBuffer)
     } finally {

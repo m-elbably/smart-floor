@@ -3,7 +3,7 @@
 import { computed, reactive, ref } from 'vue'
 import { store, activeFloor, notify } from '@/editor/store'
 import { saveFile, slug } from '@/export/files'
-import { buildPdf, type PdfOptions } from '@/export/pdf'
+import type { PdfOptions } from '@/export/pdf'
 
 const props = defineProps<{ snapshot: (scale: number) => Promise<Uint8Array>; glb: (activeOnly: boolean) => Promise<Uint8Array> }>()
 const busy = ref(false)
@@ -24,6 +24,7 @@ async function run() {
     if (kind === 'png') saved = await saveFile(`${base()}.png`, await props.snapshot(png.scale), { name: 'PNG image', ext: 'png' })
     else if (kind === 'glb') saved = await saveFile(`${base()}.glb`, await props.glb(glb.scope === 'active'), { name: 'glTF binary', ext: 'glb' })
     else {
+      const { buildPdf } = await import('@/export/pdf') // lazy: jsPDF is ~400 KB
       const out = buildPdf(store.data, store.settings, pdf, activeFloor.value!.id)
       out.warnings.forEach(notify)
       saved = await saveFile(`${base()}-plan.pdf`, out.bytes, { name: 'PDF document', ext: 'pdf' })

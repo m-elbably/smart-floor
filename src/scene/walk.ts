@@ -6,7 +6,7 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 import type { Vec2 } from '@/types'
 import { store } from '@/editor/store'
 import { floorWalls, hostLine, openingOnWall, stairRise } from '@/editor/model'
-import { add, bbox, dist, lerp, norm, rightNormal, scale, sub, wallSegments } from '@/editor/geometry'
+import { add, bbox, dist, lerp, norm, pointInPolygon, rightNormal, scale, sub, wallSegments } from '@/editor/geometry'
 import { solve, toPlan } from '@/editor/stairs'
 import { collide, onStair, type Blocker, type StairRun } from '@/editor/walkmath'
 import type { Viewport } from './viewport'
@@ -58,14 +58,18 @@ function stairRuns(): StairRun[] {
 function startPose(floorId: string): { pos: Vec2; look: Vec2 } {
   const data = store.data!
   const walls = floorWalls(data, floorId, store.settings)
+  const indoor = data.rooms.filter(r => r.floorId === floorId && r.kind !== 'outdoor')
+  const outside = (p: Vec2) => !indoor.some(r => pointInPolygon(p, r.polygon))
   for (const o of data.openings) {
     if (o.floorId !== floorId || o.kind !== 'door') continue
     const on = openingOnWall(data, o, walls)
     const line = hostLine(data, o.host)
-    if (!on || !line || on.wall.wallId || on.wall.hosts.length !== 1) continue
+    if (!on || !line || on.wall.wallId) continue
     const c = lerp(line[0], line[1], o.along / (dist(line[0], line[1]) || 1))
-    const out = rightNormal(sub(line[1], line[0])) // CCW rooms: right = outside
-    return { pos: add(c, scale(out, 1.2)), look: c }
+    const n = rightNormal(sub(line[1], line[0]))
+    // either side may be outside (the edge's winding is not guaranteed); interior doors have neither
+    for (const pos of [add(c, scale(n, 3.5)), add(c, scale(n, -3.5))])
+      if (outside(pos) && outside(add(c, scale(sub(pos, c), 0.1)))) return { pos, look: c } // far enough to see the façade
   }
   const pts = data.rooms.filter(r => r.floorId === floorId).flatMap(r => r.polygon)
   if (!pts.length) return { pos: [0, -3], look: [0, 0] }
