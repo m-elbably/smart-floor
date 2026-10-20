@@ -33,6 +33,20 @@ async function importFile() {
   }
 }
 
+// A furnished example to explore before drawing your own; imported as an ordinary, editable copy.
+async function openSample() {
+  try {
+    const res = await fetch('./sample.smartfloor')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const [id] = await importProject(new Uint8Array(await res.arrayBuffer()))
+    refreshProjects()
+    if (id) openProject(id)
+  } catch (e) {
+    console.error(e)
+    toast.add({ title: 'The sample could not be opened', description: (e as Error).message, color: 'error', icon: 'i-lucide-triangle-alert' })
+  }
+}
+
 const emit = defineEmits<{ settings: [] }>()
 const search = ref('')
 const filtered = computed(() => {
@@ -82,7 +96,7 @@ function ago(ts: number) {
 <template>
   <div class="h-full flex flex-col">
     <header class="flex items-center gap-3 px-6 py-4 border-b border-default">
-      <UIcon name="i-lucide-layout-dashboard" class="size-7 text-primary" />
+      <img :src="'./icon.png'" alt="" class="size-7" />
       <h1 class="text-xl font-semibold">Smart Floor</h1>
       <div class="flex-1" />
       <UInput v-model="search" icon="i-lucide-search" placeholder="Search projects" class="w-64" />
@@ -96,8 +110,11 @@ function ago(ts: number) {
         v-if="!store.projects.length"
         icon="i-lucide-house-plus"
         title="No projects yet"
-        description="Create your first project, then draw rooms, add floors and furnish them."
-        :actions="[{ label: 'New project', icon: 'i-lucide-plus', onClick: () => openForm() }]"
+        description="Create your first project, or open the sample house to look around first."
+        :actions="[
+          { label: 'New project', icon: 'i-lucide-plus', onClick: () => openForm() },
+          { label: 'Open sample house', icon: 'i-lucide-house', color: 'neutral', variant: 'outline', onClick: openSample }
+        ]"
         class="mt-24"
       />
       <p v-else-if="!filtered.length" class="text-muted text-center mt-24">No projects match “{{ search }}”.</p>
