@@ -35,9 +35,9 @@ See it in 3D or walk through it in first person. Works offline, and everything s
 
 ## Screenshots
 
-| 2D plan | Light theme |
+| 2D plan | Multiple floors |
 |---|---|
-| ![2D floor plan with furnished rooms and a garden](docs/screenshots/plan-2d.png) | ![The same plan in the light theme](docs/screenshots/plan-2d-light.png) |
+| ![2D floor plan with furnished rooms and a garden](docs/screenshots/plan-2d.png) | ![Bedrooms on the first floor, with the ground floor ghosted below](docs/screenshots/floors.png) |
 | **Furniture catalog** | **Room templates** |
 | ![Furniture catalog panel next to the plan](docs/screenshots/catalog.png) | ![Room templates dialog](docs/screenshots/templates.png) |
 | **Walk-through** | **Inspector** |
