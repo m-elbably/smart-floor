@@ -18,12 +18,34 @@ async function exportProjectFile() {
     notify(`Export failed: ${(e as Error).message}`)
   }
 }
+// Text exports with no options, so they save straight away: vector plans of the active floor, or the quantities.
+const TEXT_EXPORTS = {
+  svg: { name: 'SVG image', build: async () => (await import('@/export/svg')).buildSvg(store.data!, store.settings, activeFloor.value!.id), floor: true },
+  dxf: { name: 'DXF drawing', build: async () => (await import('@/export/dxf')).buildDxf(store.data!, store.settings, activeFloor.value!.id), floor: true },
+  csv: { name: 'CSV spreadsheet', build: async () => (await import('@/export/schedule')).buildSchedule(store.data!, store.settings.units), floor: false }
+}
+async function exportText(ext: keyof typeof TEXT_EXPORTS) {
+  if (!store.data || !activeFloor.value) return
+  const x = TEXT_EXPORTS[ext]
+  try {
+    const name = `${slug(store.data.project.name)}-${x.floor ? slug(activeFloor.value.name) : 'quantities'}.${ext}`
+    const path = await saveFile(name, new TextEncoder().encode(await x.build()), { name: x.name, ext })
+    if (path) notify(`Saved ${path}`)
+  } catch (e) {
+    notify(`Export failed: ${(e as Error).message}`)
+  }
+}
 const exportItems = [
   [
     { label: 'Image (PNG)…', icon: 'i-lucide-image', onSelect: () => (store.ui.export = 'png') },
     { label: '3D model (GLB)…', icon: 'i-lucide-file-box', onSelect: () => (store.ui.export = 'glb') },
     { label: 'Printable plan (PDF)…', icon: 'i-lucide-file-text', onSelect: () => (store.ui.export = 'pdf') }
   ],
+  [
+    { label: 'Plan as SVG (this floor)…', icon: 'i-lucide-pen-tool', onSelect: () => exportText('svg') },
+    { label: 'Plan for CAD, DXF (this floor)…', icon: 'i-lucide-drafting-compass', onSelect: () => exportText('dxf') }
+  ],
+  [{ label: 'Quantities (CSV)…', icon: 'i-lucide-sheet', onSelect: () => exportText('csv') }],
   [{ label: 'Project file (.smartfloor)…', icon: 'i-lucide-file-down', onSelect: exportProjectFile }]
 ]
 

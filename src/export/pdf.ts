@@ -2,15 +2,11 @@
 import { jsPDF } from 'jspdf'
 import type { ProjectData } from '@/db/repo'
 import type { Vec2 } from '@/types'
-import { add, bbox, centroid, dist, norm, scale, sub, wallSegments, area } from '@/editor/geometry'
-import { floorWalls, hostLine, openingOnWall, openingFrame, doorLeaves, swingArc, wallDimensions } from '@/editor/model'
-import { solve, toPlan } from '@/editor/stairs'
-import { stairRise } from '@/editor/model'
-import { itemFootprint } from '@/catalog'
+import { add, bbox, sub } from '@/editor/geometry'
 import { summary } from '@/editor/summary'
-import { ZONE_KINDS } from '@/editor/presets'
 import { format, formatArea, type Units } from '@/editor/units'
 import { pageTransform, PAPER, MARGIN, TITLE_H, type Paper, type PlanScale } from './layout'
+import { planDrawing } from './plan'
 
 export interface PdfOptions {
   paper: Paper
@@ -42,23 +38,12 @@ export function buildPdf(data: ProjectData, s: Settings, opts: PdfOptions, activ
 
   floors.forEach((floor, page) => {
     if (page) doc.addPage(opts.paper, opts.orientation)
-    const rooms = data.rooms.filter(r => r.floorId === floor.id)
-    const walls = floorWalls(data, floor.id, s)
-    const zones = data.zones.filter(z => z.floorId === floor.id)
-    const stairs = data.stairs.filter(st => st.floorId === floor.id)
-    const items = data.items.filter(i => i.floorId === floor.id)
-    const pts: Vec2[] = [
-      ...rooms.flatMap(r => r.polygon),
-      ...walls.flatMap(w => [w.a, w.b]),
-      ...zones.flatMap(z => z.polygon),
-      ...stairs.flatMap(st => toPlan(st, solve(st.kind, st.params, stairRise(data, st.floorId, s.slab)).footprint)),
-      ...items.flatMap(i => itemFootprint(i))
-    ]
-    if (!pts.length) {
+    const d = planDrawing(data, floor.id, s)
+    if (!d.points.length) {
       doc.setFontSize(12).setTextColor('#71717a').text('This floor is empty.', pw / 2, ph / 2, { align: 'center' })
       return
     }
-    const bb = bbox(pts)
+    const bb = bbox(d.points)
     const pad = 1 // room for dimension lines
     const T = pageTransform(sub(bb.min, [pad, pad]), add(bb.max, [pad, pad]), pw, ph, opts.scale)
     if (!T.fixedFits) warnings.push(`${floor.name} doesn't fit at 1:${opts.scale} on ${opts.paper.toUpperCase()}; printed to fit (≈1:${Math.round(T.denominator)}).`)
@@ -74,72 +59,38 @@ export function buildPdf(data: ProjectData, s: Settings, opts: PdfOptions, activ
     const polyline = (points: Vec2[]) => points.slice(1).forEach((q, i) => line(points[i], q))
 
     // Garden zones, then room floors.
-    for (const z of zones) (doc.setFillColor(tint(ZONE_KINDS[z.kind]?.color ?? '#7fb069')), poly(z.polygon, 'F'))
+    for (const z of d.zones) (doc.setFillColor(tint(z.color)), poly(z.poly, 'F'))
     doc.setFillColor('#f4f1ea')
-    for (const r of rooms) poly(r.polygon, 'F')
+    for (const r of d.rooms) poly(r.poly, 'F')
 
     // Furniture and stairs as thin outlines.
     doc.setLineWidth(0.15).setDrawColor('#a1a1aa')
-    for (const i of items) poly(itemFootprint(i), 'S')
+    for (const i of d.items) poly(i, 'S')
     doc.setDrawColor('#52525b')
-    for (const st of stairs) {
-      const sol = solve(st.kind, st.params, stairRise(data, st.floorId, s.slab))
-      for (const tr of sol.treads) poly(toPlan(st, tr.poly), 'S')
-      polyline(toPlan(st, sol.walk))
-    }
+    for (const t of d.treads) poly(t, 'S')
+    d.walkLines.forEach(polyline)
 
-    // Walls cut by openings.
-    const placed = data.openings.filter(o => o.floorId === floor.id).flatMap(o => {
-      const on = openingOnWall(data, o, walls)
-      const hl = hostLine(data, o.host)
-      return on && hl ? [{ o, on, ...openingFrame(hl[0], hl[1], on.wall) }] : []
-    })
-    for (const w of walls) {
-      const L = dist(w.a, w.b)
-      if (L < 1e-3) continue
-      const dir = norm(sub(w.b, w.a))
-      const n: Vec2 = [-dir[1], dir[0]]
-      const at = (t: number, off = 0) => add(add(w.a, scale(dir, t)), scale(n, off))
-      const mine = placed.filter(p => p.on.wall.key === w.key)
-      for (const part of wallSegments(L, mine.map(p => ({ id: p.o.id, center: p.on.center, width: p.o.width })))) {
-        const h = w.thickness / 2
-        if (!part.openingId) {
-          doc.setFillColor(w.kind === 'fence' ? '#8b6b4a' : '#3f3f46')
-          poly([at(part.from, -h), at(part.to, -h), at(part.to, h), at(part.from, h)], 'F')
-          continue
-        }
-        const p = mine.find(m => m.o.id === part.openingId)!
-        doc.setDrawColor('#27272a').setLineWidth(0.18)
-        line(at(part.from, -h), at(part.from, h))
-        line(at(part.to, -h), at(part.to, h))
-        if (p.o.kind === 'window') for (const off of [-h, 0, h]) line(at(part.from, off), at(part.to, off))
-        else
-          for (const leaf of doorLeaves(p.o, w, part.from, part.to, p.inward, p.hingeAtStart)) {
-            polyline(swingArc(leaf))
-            line(leaf.hinge, add(leaf.hinge, scale(leaf.into, leaf.width)))
-          }
-      }
-    }
+    // Walls, then the openings cut into them.
+    for (const w of d.walls) (doc.setFillColor(w.fence ? '#8b6b4a' : '#3f3f46'), poly(w.poly, 'F'))
+    doc.setDrawColor('#27272a').setLineWidth(0.18)
+    for (const [a, b] of d.openingLines) line(a, b)
+    d.swings.forEach(polyline)
 
     // Dimensions along exterior walls.
     doc.setDrawColor('#71717a').setLineWidth(0.1).setTextColor('#3f3f46').setFontSize(6.5)
-    for (const d of wallDimensions(data, floor.id, s, 0.55)) {
-      line(d.a, d.b)
-      for (const [a, b] of d.ext) line(a, b)
-      // label sits between the wall and its dimension line, centred on both axes
-      const n = norm(sub(d.ext[0][1], d.ext[0][0]))
-      const [x, y] = P(sub(scale(add(d.a, d.b), 0.5), scale(n, 0.25)))
-      const ang = (Math.atan2(-(d.b[1] - d.a[1]), d.b[0] - d.a[0]) * 180) / Math.PI
-      const up = ang > 90 || ang < -90 ? ang + 180 : ang // keep text readable
-      doc.text(format(d.length, s.units), x, y, { align: 'center', baseline: 'middle', angle: -up })
+    for (const dim of d.dims) {
+      line(dim.a, dim.b)
+      for (const [a, b] of dim.ext) line(a, b)
+      const [x, y] = P(dim.at)
+      doc.text(format(dim.length, s.units), x, y, { align: 'center', baseline: 'middle', angle: dim.angle })
     }
 
     // Room names + areas.
     doc.setTextColor('#18181b')
-    for (const r of rooms) {
-      const [x, y] = P(centroid(r.polygon))
+    for (const r of d.rooms) {
+      const [x, y] = P(r.at)
       doc.setFont('helvetica', 'bold').setFontSize(8).text(r.name, x, y, { align: 'center' })
-      doc.setFont('helvetica', 'normal').setFontSize(7).text(formatArea(area(r.polygon), s.units), x, y + 3.2, { align: 'center' })
+      doc.setFont('helvetica', 'normal').setFontSize(7).text(formatArea(r.area, s.units), x, y + 3.2, { align: 'center' })
     }
 
     titleBlock(floor.name, T)

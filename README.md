@@ -21,6 +21,7 @@ See it in 3D or walk through it in first person. Works offline, and everything s
 
 ## Features
 
+- **A sample house to explore.** Open a furnished house with a garden from the home screen, walk through it, and take it apart.
 - **Rooms in seconds.** Drag out rectangles, click out polygons, or stamp one of 23 furnished room templates. Walls, shared walls and floor areas are worked out for you.
 - **Type exact sizes.** While drawing, type `3.5`, `350cm` or `4x3` and press Enter. Snapping to grid, corners and walls is on by default; hold Alt to turn it off.
 - **Doors, windows and stairs.** Doors and windows slide along walls. Stairs are parametric (straight, L, U or spiral) and connect floors.
@@ -28,7 +29,7 @@ See it in 3D or walk through it in first person. Works offline, and everything s
 - **84 furniture and garden items.** Search them, choose colour variants, place them by drag-and-drop, and rotate or scale them. You can add your own `.glb` models.
 - **Gardens.** Draw grass, patio, path, driveway and pool zones, plus trees, hedges, flower beds and outdoor furniture, and mark the site boundary.
 - **Three ways to look at it.** A 2D plan, an orbiting 3D view, and a WASD walk-through. Press Tab to switch.
-- **Export.** PNG image, GLB 3D model, PDF plan (1:50, 1:100 or fit to page), or a `.smartfloor` project file you can share.
+- **Export.** PNG image, GLB 3D model, PDF plan (1:50, 1:100 or fit to page), SVG plan, DXF drawing for CAD (LibreCAD, AutoCAD, FreeCAD), a CSV of quantities to price the job in a spreadsheet, or a `.smartfloor` project file you can share.
 - **Saves automatically.** There is no Save button. Every edit can be undone, the data is one local SQLite file, and the last three daily backups are kept.
 - **Small and offline.** The app is about 7 MB and makes no network calls, accounts or telemetry. Light and dark themes are included.
 
@@ -39,6 +40,8 @@ See it in 3D or walk through it in first person. Works offline, and everything s
 | ![2D floor plan with furnished rooms and a garden](docs/screenshots/plan-2d.png) | ![The same plan in the light theme](docs/screenshots/plan-2d-light.png) |
 | **Furniture catalog** | **Room templates** |
 | ![Furniture catalog panel next to the plan](docs/screenshots/catalog.png) | ![Room templates dialog](docs/screenshots/templates.png) |
+| **Walk-through** | **Inspector** |
+| ![First-person view from the patio, looking in through the front doors](docs/screenshots/walk.png) | ![A selected room with its properties in the inspector](docs/screenshots/inspector.png) |
 
 ## Install
 
@@ -105,7 +108,7 @@ src/
   scene/     three.js viewport, 3D builders, walk mode
   catalog/   furniture manifest + procedural model builders
   db/        sql.js database, migrations, autosave and backups
-  export/    PNG, GLB, PDF and .smartfloor export
+  export/    PNG, GLB, PDF, SVG, DXF, CSV and .smartfloor export
   ui/        Vue components
 specs/       requirements, design and implementation notes
 ```
